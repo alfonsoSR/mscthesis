@@ -1,0 +1,13 @@
+# Concrete directories
+luigi
+output
+data
+figures
+code/residuals
+.vscode
+.DS_Store
+
+# Python
+*cache*
+*egg-info*
+_version.py
