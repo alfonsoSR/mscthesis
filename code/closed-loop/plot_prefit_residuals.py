@@ -10,28 +10,6 @@ figdir = ppaths.figdir / "prefit-closed-loop"
 figdir.mkdir(exist_ok=True)
 
 
-def get_content_of_residuals_file(source_file: Path) -> np.ndarray:
-
-    # Read epochs and residuals into array
-    with source_file.open() as buffer:
-
-        # Skip header (First two lines)
-        for _ in range(2):
-            buffer.readline()
-
-        epochs: list[float] = []
-        residuals: list[float] = []
-        for line in buffer:
-            epoch, _, residual = line.strip().split(",")
-            epochs.append(float(epoch))
-            residuals.append(float(residual))
-
-    out = np.array([epochs, residuals])
-
-    # Return sorted by epoch
-    return out[:, np.argsort(out[0])]
-
-
 def get_comparison_version(savefig_flag: bool) -> int:
 
     cache_file = Path(__file__).parent / "comparison_version.txt"
@@ -120,5 +98,5 @@ if __name__ == "__main__":
 
             with fig.subplot(setup=comp_setup) as subfig:
                 subfig.line(rdt, rres, fmt=".", label="Reference")
-                subfig.line(rdt, luigi, fmt=".", label="Luigi")
+                # subfig.line(rdt, luigi, fmt=".", label="Luigi")
                 subfig.line(cdt, cres, fmt=".", label="Current")

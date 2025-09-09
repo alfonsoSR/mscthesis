@@ -16,6 +16,7 @@ from tudatpy.math import interpolators as tinterp
 from tudatpy.dynamics.environment_setup.ground_station import (
     get_station_reference_state_itrf2000,
 )
+from tudatpy import data as tdata
 
 
 def define_system_of_bodies(spacecraft_name: str) -> tenv.SystemOfBodies:
@@ -270,13 +271,14 @@ def define_observation_collection_for_station(
     # Load data from IFMS files into Python object
     content = pio.load_doppler_observations_from_ifms_files(station_ifms)
 
-    # Define interpolator for transmitter frequency
+    # Define interpolator for uplink frequency
     interpolator = tenv.PiecewiseLinearFrequencyInterpolator(
         start_times=content.ramping_tdb0[:-1],
         end_times=content.ramping_tdb0[1:],
         ramp_rates=content.ramping_df[:-1].tolist(),
         start_frequency=content.ramping_f0[:-1].tolist(),
     )
+
     station_obj = bodies.get("Earth").get_ground_station(station)
     station_obj.set_transmitting_frequency_calculator(interpolator)
 
@@ -314,6 +316,7 @@ def define_observation_collection_for_station(
         reference_link_end=tomss.links.LinkEndType.receiver,
         ancilliary_settings=ancilliary,
     )
+
     observations = tobs.ObservationCollection([observation_set])
 
     return content, observations
@@ -491,12 +494,19 @@ if __name__ == "__main__":
 
         # Group IFMS files per station
         ifms_per_station = group_ifms_files_per_station(ifms_dir)
+        # ifms_per_station = {
+        #     "DSS63": [
+        #         Path(
+        #             "/Users/alfonso/home/thesis/phase-a/data/mex/MEX-M-MRS-1_2_3-EXT6-3896-V1.0_DATA_M63ODFXL02_DPX_170361333_00.TAB__1.0/MEX-M-MRS-1-2-3-EXT6-3896-V1.0/DATA/LEVEL02/CLOSED_LOOP/DSN/DPX/M63ODFXL02_DPX_170361333_00.TAB"
+        #         )
+        #     ]
+        # }
 
         # Process observations for each station
         output_per_station: dict[str, np.ndarray] = {}
         for station_name, station_files in ifms_per_station.items():
 
-            if station_name == "DSS14":
+            if station_name not in ("DSS63", "NWNORCIA"):
                 continue
 
             print(f"Processing observations for {station_name}")
@@ -544,6 +554,8 @@ if __name__ == "__main__":
                 ]
             )
             np.save(output_dir / f"{station_name}", results)
+
+            print(f"Saved results for {station_name}")
 
             # observation_model_settings = [
             #     tomss.model_settings.dsn_n_way_doppler_averaged(
