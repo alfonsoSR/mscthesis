@@ -8,6 +8,7 @@ from prefit import paths as ppaths
 source_dir = ppaths.outdir / "prefit-closed-loop"
 figdir = ppaths.figdir / "prefit-closed-loop"
 figdir.mkdir(exist_ok=True)
+LETTERS = iter([x for x in "abcdefghijklmnopqrstuvwxyz"])
 
 
 def get_comparison_version(savefig_flag: bool) -> int:
@@ -32,12 +33,23 @@ if __name__ == "__main__":
     savefig: bool = False
     filename: str = "no_com_correction"
     cvrsn = get_comparison_version(savefig)
+    skip = ["DSS14", "DSS63", "MALARGUE", "CEBREROS"]
 
     # Data files
-    data_files = [item for item in source_dir.glob("*.npy")]
+    data_files = [
+        item for item in source_dir.glob("*.npy") if item.stem not in skip
+    ]
 
     # Generate mosaic based on number of stations
-    mosaic = ";".join([f"{i}{i+1}" for i in range(1, len(data_files) + 3, 2)])
+    # if len(data_files) == 0:
+    #     raise ValueError("Nothing to plot")
+    # mosaic = ""
+    # for item in data_files:
+    #     mosaic += f"{next(LETTERS)}{next(LETTERS)};"
+    # mosaic = mosaic[:-1]
+
+    mosaic = ";".join([f"{next(LETTERS)}{next(LETTERS)}" for _ in data_files])
+    print(mosaic)
 
     # Canvas setup
     figdir.mkdir(exist_ok=True)
@@ -82,7 +94,7 @@ if __name__ == "__main__":
             )
 
             # Use specific ylimits for NWNORCIA
-            comp_ylim: tuple[float, float] | None = None
+            comp_ylim: tuple[float, float] | None = (-0.15, 0.15)
             if station == "NWNORCIA":
                 comp_ylim = (-0.15, 0.15)
 
@@ -94,9 +106,10 @@ if __name__ == "__main__":
             )
 
             with fig.subplot(setup=error_setup) as subfig:
-                subfig.line(cdt, cres - rres, fmt=".")
+                subfig.line(cdt, cres - rres, fmt=".", label="Current")
+                subfig.line(cdt, luigi - rres, fmt=".", label="Luigi")
 
             with fig.subplot(setup=comp_setup) as subfig:
                 subfig.line(rdt, rres, fmt=".", label="Reference")
-                # subfig.line(rdt, luigi, fmt=".", label="Luigi")
+                subfig.line(cdt, luigi, fmt=".", label="Luigi")
                 subfig.line(cdt, cres, fmt=".", label="Current")

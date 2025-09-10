@@ -67,6 +67,7 @@ def load_doppler_observations_from_ifms_files(
         content = tdata.read_ifms_file(
             str(ifms), apply_tropospheric_correction=False
         ).raw_datamap
+        print(ifms.name)
 
         # Update containers with observation data
         observation_epochs_et += content["tdb_seconds_since_j2000"]
@@ -123,7 +124,7 @@ def load_doppler_observations_from_ifms_files(
             # )
             if diff <= ttime.Time(2):
                 raise NotImplementedError(
-                    "We want separation by more than 1 second"
+                    f"We want separation by more than 1 second: {diff.to_float()} : {first_epoch_next.to_iso_string()} : {last_epoch_current.to_iso_string()}"
                 )
 
             # Extend current at intermediate -1
@@ -172,6 +173,8 @@ def load_doppler_observations_from_ifms_files(
         ],
         np.array([0.0, 0.0, 0.0]),
     )
+
+    print(f"End")
 
     return TwoWayDopplerObservations(
         observation_epochs_et=np.array(

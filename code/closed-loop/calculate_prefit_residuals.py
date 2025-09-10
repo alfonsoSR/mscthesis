@@ -19,36 +19,93 @@ from tudatpy.dynamics.environment_setup.ground_station import (
 from tudatpy import data as tdata
 
 
-def define_system_of_bodies(spacecraft_name: str) -> tenv.SystemOfBodies:
+def add_empty_body_with_interpolated_ephemerides(
+    environment_settings: tenvs.BodyListSettings,
+    body_name: str,
+    initial_epoch: ttime.Time,
+    final_epoch: ttime.Time,
+    step: ttime.Time,
+    ephemeris_frame_origin: str,
+    ephemeris_frame_orientation: str,
+) -> tenvs.BodyListSettings:
 
-    # General configuration: Time interval in UTC
-    initial_epoch_utc = ttime.DateTime.from_iso_string("2013-12-26T00:00:00")
-    final_epoch_utc = ttime.DateTime.from_iso_string("2013-12-30T00:00:00")
+    # Add empty settings for body
+    environment_settings.add_empty_settings(body_name)
+    body_settings = environment_settings.get(body_name)
+
+    # Add interpolated ephemerides from spice
+    body_settings.ephemeris_settings = tenvs.ephemeris.interpolated_spice(
+        initial_time=initial_epoch,
+        final_time=final_epoch,
+        time_step=step,
+        frame_origin=ephemeris_frame_origin,
+        frame_orientation=ephemeris_frame_orientation,
+    )
+
+    # Add point-mass gravity field settings
+    body_settings.gravity_field_settings = tenvs.gravity_field.central_spice(
+        body_name
+    )
+
+    return environment_settings
+
+
+def define_system_of_bodies_from_raw_observations(
+    spacecraft_name: str,
+    raw_observations_per_station: dict[str, pio.TwoWayDopplerObservations],
+) -> tenv.SystemOfBodies:
+
+    # Define initial and final epochs based on observation span
+    initial_epoch_et = np.infty
+    final_epoch_et = 0
+    for raw_observations in raw_observations_per_station.values():
+        if raw_observations.observation_epochs_et[0] < initial_epoch_et:
+            initial_epoch_et = raw_observations.observation_epochs_et[0]
+        if raw_observations.observation_epochs_et[-1] > final_epoch_et:
+            final_epoch_et = raw_observations.observation_epochs_et[-1]
+    assert isinstance(initial_epoch_et, ttime.Time)
+    assert isinstance(final_epoch_et, ttime.Time)
+
+    # # General configuration: Time interval in UTC
+    # initial_epoch_utc = ttime.DateTime.from_iso_string("2013-12-26T00:00:00")
+    # final_epoch_utc = ttime.DateTime.from_iso_string("2013-12-30T00:00:00")
     buffer_time = ttime.Time(86400.0)
 
     # General configuration: System of bodies
     global_frame_origin: str = "SSB"
     global_frame_orientation: str = "J2000"
     central_body: str = "Mars"
+    default_step: ttime.Time = ttime.Time(3600.0)
+    correction_bodies: list[str] = ["Sun", "Moon"]
+
+    # Transform ET epochs to TDB
+    initial_epoch_tdb = ttime.DateTime.from_julian_day(
+        ttime.seconds_since_epoch_to_julian_day(initial_epoch_et.to_float())
+    ).to_epoch_time_object()
+    final_epoch_tdb = ttime.DateTime.from_julian_day(
+        ttime.seconds_since_epoch_to_julian_day(final_epoch_et.to_float())
+    ).to_epoch_time_object()
 
     # Apply buffer to initial and final epochs (UTC)
-    initial_epoch_buffer = (
-        initial_epoch_utc.to_epoch_time_object() - buffer_time
-    )
-    final_epoch_buffer = final_epoch_utc.to_epoch_time_object() + buffer_time
+    initial_epoch_buffer = initial_epoch_tdb - buffer_time
+    final_epoch_buffer = final_epoch_tdb + buffer_time
+    # initial_epoch_buffer = (
+    #     initial_epoch_utc.to_epoch_time_object() - buffer_time
+    # )
+    # final_epoch_buffer = final_epoch_utc.to_epoch_time_object() + buffer_time
 
     # Transform epochs to TDB
-    time_converter = ttime.default_time_scale_converter()
-    initial_epoch_buffer = time_converter.convert_time_object(
-        ttime.TimeScales.utc_scale,
-        ttime.TimeScales.tdb_scale,
-        initial_epoch_buffer,
-    )
-    final_epoch_buffer = time_converter.convert_time_object(
-        ttime.TimeScales.utc_scale,
-        ttime.TimeScales.tdb_scale,
-        final_epoch_buffer,
-    )
+    # time_converter = ttime.default_time_scale_converter()
+    # initial_epoch_buffer = time_converter.convert_time_object(
+    #     ttime.TimeScales.utc_scale,
+    #     ttime.TimeScales.tdb_scale,
+    #     initial_epoch_buffer,
+    # )
+    # final_epoch_buffer = time_converter.convert_time_object(
+    #     ttime.TimeScales.utc_scale,
+    #     ttime.TimeScales.tdb_scale,
+    #     final_epoch_buffer,
+    # )
 
     # Initialize environment_settings
     environment_settings = tenvs.BodyListSettings(
@@ -75,11 +132,11 @@ def define_system_of_bodies(spacecraft_name: str) -> tenv.SystemOfBodies:
         body_name_to_use=spacecraft_name,
     )
 
-    # # Missing orientation settings, potentially shape model
-    # mex_settings.rotation_model_settings = tenvs.rotation_model.spice(
-    #     base_frame=global_frame_orientation,
-    #     target_frame="MEX_SPACECRAFT",
-    # )
+    # Position of HGA with respect to reference point of spacecraft
+    mex_settings.rotation_model_settings = tenvs.rotation_model.spice(
+        base_frame=global_frame_orientation,
+        target_frame="MEX_SPACECRAFT",
+    )
 
     # Define settings for Mars
     ############################################
@@ -90,7 +147,7 @@ def define_system_of_bodies(spacecraft_name: str) -> tenv.SystemOfBodies:
     mars_settings.ephemeris_settings = tenvs.ephemeris.interpolated_spice(
         initial_time=initial_epoch_buffer,
         final_time=final_epoch_buffer,
-        time_step=ttime.Time(3600.0),
+        time_step=default_step,
         frame_orientation=global_frame_orientation,
         frame_origin=global_frame_origin,
         body_name_to_use="Mars",
@@ -106,7 +163,7 @@ def define_system_of_bodies(spacecraft_name: str) -> tenv.SystemOfBodies:
         interpolator_settings=tinterp.cubic_spline_interpolation(),
         initial_time=initial_epoch_buffer,
         final_time=final_epoch_buffer,
-        time_step=ttime.Time(3600.0),
+        time_step=default_step,
     )
     eop_interp_settings = tinterp.InterpolatorGenerationSettings(
         interpolator_settings=tinterp.cubic_spline_interpolation(),
@@ -126,7 +183,7 @@ def define_system_of_bodies(spacecraft_name: str) -> tenv.SystemOfBodies:
     earth_settings.ephemeris_settings = tenvs.ephemeris.interpolated_spice(
         initial_time=initial_epoch_buffer,
         final_time=final_epoch_buffer,
-        time_step=ttime.Time(3600.0),
+        time_step=default_step,
         frame_origin=global_frame_origin,
         frame_orientation=global_frame_orientation,
         body_name_to_use="Earth",
@@ -152,7 +209,7 @@ def define_system_of_bodies(spacecraft_name: str) -> tenv.SystemOfBodies:
     # environment_settings.get("Earth").gravity_field_settings = __gfield_settings
 
     # Define settings for ground stations (TODO: Do this manually)
-    stations_to_create = ["DSS63", "NWNORCIA"]
+    stations_to_create = list(raw_observations_per_station.keys())
     ground_station_settings: list[
         tenvs.ground_station.GroundStationSettings
     ] = []
@@ -162,7 +219,17 @@ def define_system_of_bodies(spacecraft_name: str) -> tenv.SystemOfBodies:
         station_ref_epoch = ttime.DateTime.from_iso_string(
             "2000-01-01T00:00:00"
         )
-        ref_state_itrf2000 = get_station_reference_state_itrf2000(station_name)
+        try:
+            ref_state_itrf2000 = get_station_reference_state_itrf2000(
+                station_name
+            )
+        except KeyError:
+            print(f"Using approximated position for station: {station_name}")
+            _station_name = f"DSS-{station_name.split('DSS')[-1]}"
+            ref_pos_itrf2000 = tenvs.ground_station.get_approximate_dsn_ground_station_positions()[
+                _station_name
+            ]
+            ref_state_itrf2000 = np.array([*ref_pos_itrf2000, 0, 0, 0])
 
         # Transform reference state to ITRF2014 (Consistent with our EOPs)
         ref_state_itrf2014 = (
@@ -224,6 +291,18 @@ def define_system_of_bodies(spacecraft_name: str) -> tenv.SystemOfBodies:
 
     # exit(0)
 
+    # Add empty bodies for corrections
+    for cbody in correction_bodies:
+        environment_settings = add_empty_body_with_interpolated_ephemerides(
+            environment_settings=environment_settings,
+            body_name=cbody,
+            initial_epoch=initial_epoch_buffer,
+            final_epoch=final_epoch_buffer,
+            step=default_step,
+            ephemeris_frame_origin=global_frame_origin,
+            ephemeris_frame_orientation=global_frame_orientation,
+        )
+
     # Create system of bodies
     bodies = tenvs.create_system_of_bodies(environment_settings)
 
@@ -232,14 +311,46 @@ def define_system_of_bodies(spacecraft_name: str) -> tenv.SystemOfBodies:
         spacecraft_name
     ).system_models.set_default_transponder_turnaround_ratio_function()
 
+    # Define position of HGA as reference point of the spacecraft
+    # TODO: Correct for position of COM wrt to LVI
+    cstate_hga_lvi_mexframe = spice.get_body_cartesian_state_at_epoch(
+        target_body_name="MEX_HGA",
+        observer_body_name="MEX_SPACECRAFT",
+        reference_frame_name="MEX_SPACECRAFT",
+        aberration_corrections="NONE",
+        ephemeris_time=initial_epoch_et,
+    )
+    hga_ephemeris_settings = tenvs.ephemeris.constant(
+        constant_state=cstate_hga_lvi_mexframe,
+        frame_origin="MEX_SPACECRAFT",
+        frame_orientation="MEX_SPACECRAFT",
+    )
+    hga_ephemeris = tenvs.ephemeris.create_ephemeris(
+        ephemeris_settings=hga_ephemeris_settings, body_name="HGA"
+    )
+    bodies.get(spacecraft_name).system_models.set_reference_point(
+        reference_point="HGA",
+        ephemeris=hga_ephemeris,
+    )
+
     return bodies
 
 
-def group_ifms_files_per_station(source_dir: Path) -> dict[str, list[Path]]:
+def group_ifms_data_per_station(
+    source_dir: Path, ignore: list[str]
+) -> dict[str, pio.TwoWayDopplerObservations]:
 
     # Get IFMS files in directory and group them per station
     ifms_per_station: dict[str, list[Path]] = {}
     for file in source_dir.glob("*.TAB"):
+
+        ignore_file: bool = False
+        for item in ignore:
+            if item in file.name:
+                ignore_file = True
+                break
+        if ignore_file:
+            continue
 
         # Get metadata from file name
         metadata = pio.get_metadata_from_ifms_filename(file)
@@ -248,12 +359,18 @@ def group_ifms_files_per_station(source_dir: Path) -> dict[str, list[Path]]:
         match metadata["station_id"]:
             case "32":
                 station_name = "NWNORCIA"
+            case "62":
+                station_name = "CEBREROS"
             case "63":
                 station_name = "DSS63"
+            case "84":
+                station_name = "MALARGUE"
             case "14":
                 station_name = "DSS14"
             case _:
-                raise ValueError("Invalid station id")
+                raise ValueError(
+                    f"Invalid station id: {metadata['station_id']}"
+                )
 
         # Update collection with file
         if station_name not in ifms_per_station:
@@ -261,15 +378,29 @@ def group_ifms_files_per_station(source_dir: Path) -> dict[str, list[Path]]:
         else:
             ifms_per_station[station_name].append(file)
 
-    return ifms_per_station
+    # Sort station files by epoch
+    for station_name in ifms_per_station:
+        ifms_per_station[station_name] = pio.sort_ifms_files_by_epoch(
+            ifms_per_station[station_name]
+        )
+
+    # Load Doppler data for each station
+    return {
+        station_name: pio.load_doppler_observations_from_ifms_files(
+            ifms_per_station[station_name]
+        )
+        for station_name in ifms_per_station
+    }
 
 
 def define_observation_collection_for_station(
-    bodies: tenv.SystemOfBodies, station: str, station_ifms: list[Path]
-) -> tuple[pio.TwoWayDopplerObservations, tobs.ObservationCollection]:
+    bodies: tenv.SystemOfBodies,
+    station: str,
+    station_raw_data: pio.TwoWayDopplerObservations,
+) -> tobs.ObservationCollection:
 
     # Load data from IFMS files into Python object
-    content = pio.load_doppler_observations_from_ifms_files(station_ifms)
+    content = station_raw_data
 
     # Define interpolator for uplink frequency
     interpolator = tenv.PiecewiseLinearFrequencyInterpolator(
@@ -294,7 +425,9 @@ def define_observation_collection_for_station(
     )
 
     # Define link ends
-    transponder = tomss.links.body_origin_link_end_id(spacecraft_name)
+    transponder = tomss.links.body_reference_point_link_end_id(
+        body_name=spacecraft_name, reference_point_id="HGA"
+    )
     ground_station = tomss.links.body_reference_point_link_end_id(
         body_name="Earth",
         reference_point_id=station,
@@ -319,7 +452,7 @@ def define_observation_collection_for_station(
 
     observations = tobs.ObservationCollection([observation_set])
 
-    return content, observations
+    return observations
 
 
 # def compute_prefit_residuals_for_ifms_file(
@@ -481,6 +614,7 @@ if __name__ == "__main__":
 
     # Paths
     metakernel = ppaths.datadir / "metak_mex.tm"
+    # ifms_dir = ppaths.psadir
     ifms_dir = ppaths.datadir / "ifms/filtered"
     output_dir = ppaths.outdir / "prefit-closed-loop"
     output_dir.mkdir(exist_ok=True)
@@ -488,33 +622,37 @@ if __name__ == "__main__":
     try:
         spice.load_kernel(str(metakernel))
 
+        # Load data from IFMS files and group per station
+        ifms_data_per_station = group_ifms_data_per_station(
+            ifms_dir, ["133612305", "133642046", "M84", "M62", "M14"]
+        )
+
         # Define system of bodies
         spacecraft_name: str = "MEX"
-        bodies = define_system_of_bodies(spacecraft_name)
-
-        # Group IFMS files per station
-        ifms_per_station = group_ifms_files_per_station(ifms_dir)
-        # ifms_per_station = {
-        #     "DSS63": [
-        #         Path(
-        #             "/Users/alfonso/home/thesis/phase-a/data/mex/MEX-M-MRS-1_2_3-EXT6-3896-V1.0_DATA_M63ODFXL02_DPX_170361333_00.TAB__1.0/MEX-M-MRS-1-2-3-EXT6-3896-V1.0/DATA/LEVEL02/CLOSED_LOOP/DSN/DPX/M63ODFXL02_DPX_170361333_00.TAB"
-        #         )
-        #     ]
-        # }
+        bodies = define_system_of_bodies_from_raw_observations(
+            spacecraft_name,
+            ifms_data_per_station,
+        )
 
         # Process observations for each station
         output_per_station: dict[str, np.ndarray] = {}
-        for station_name, station_files in ifms_per_station.items():
-
-            if station_name not in ("DSS63", "NWNORCIA"):
-                continue
+        for station_name, contents in ifms_data_per_station.items():
 
             print(f"Processing observations for {station_name}")
 
-            # Define observation collection
-            contents, observations = define_observation_collection_for_station(
-                bodies=bodies, station=station_name, station_ifms=station_files
+            # Define an observation collection for the station
+            observations = define_observation_collection_for_station(
+                bodies=bodies,
+                station=station_name,
+                station_raw_data=contents,
             )
+
+            # Define corrections to the light-time equation
+            lt_correction_settings = [
+                tomss.light_time_corrections.first_order_relativistic_light_time_correction(
+                    perturbing_bodies=["Sun"],
+                )
+            ]
 
             # Define observation model for station
             link_definitions = observations.get_link_definitions_for_observables(
@@ -524,6 +662,7 @@ if __name__ == "__main__":
                 tomss.model_settings.dsn_n_way_doppler_averaged(
                     link_ends=link_definitions[0],
                     subtract_doppler_signature=False,
+                    light_time_correction_settings=lt_correction_settings,
                 )
             ]
 
