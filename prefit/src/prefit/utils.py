@@ -91,7 +91,7 @@ def get_epochs_in_et(
     return epochs_et
 
 
-def transform_utc_epochs_to_et(
+def transform_utc_epochs_to_tdb(
     utc_epochs: list[ttime.Time], station_coordinates: np.ndarray
 ) -> list[ttime.Time]:
 

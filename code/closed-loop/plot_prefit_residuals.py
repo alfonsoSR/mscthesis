@@ -31,9 +31,9 @@ if __name__ == "__main__":
 
     # Get comparison version from file
     savefig: bool = False
-    filename: str = "no_com_correction"
+    filename: str = "email_martin"
     cvrsn = get_comparison_version(savefig)
-    skip = ["DSS14", "DSS63", "MALARGUE", "CEBREROS"]
+    skip = ["MALARGUE", "CEBREROS", "DSS65"]
 
     # Data files
     data_files = [
@@ -49,7 +49,6 @@ if __name__ == "__main__":
     # mosaic = mosaic[:-1]
 
     mosaic = ";".join([f"{next(LETTERS)}{next(LETTERS)}" for _ in data_files])
-    print(mosaic)
 
     # Canvas setup
     figdir.mkdir(exist_ok=True)
@@ -70,7 +69,11 @@ if __name__ == "__main__":
             station: str = file.name.split(".")[0]
 
             # Get Luigi's residuals
-            luigi = np.load(source_dir / f"luigi/{station}.npy")
+            luigi: np.ndarray | None = None
+            try:
+                luigi = np.load(source_dir / f"luigi/{station}.npy")
+            except FileNotFoundError:
+                print(f"Luigi's pre-fit not available for {station}")
 
             # Get contents
             cepochs, cobs, robs, repochs, rres, cres = np.load(file)
@@ -86,17 +89,18 @@ if __name__ == "__main__":
             et_0 = time.TimeDelta(cepochs[0], scale="tdb", format="sec")
             initial_epoch_utc = (j2000_tdb + et_0).utc.isot  # type: ignore
 
-            # Set up subplot
-            error_setup = ng.PlotSetup(
-                axtitle=f"Station: {station}",
-                xlabel=f"Hours past {initial_epoch_utc} UTC",
-                ylabel="Difference in residuals [Hz]",
-            )
-
             # Use specific ylimits for NWNORCIA
             comp_ylim: tuple[float, float] | None = (-0.15, 0.15)
             if station == "NWNORCIA":
                 comp_ylim = (-0.15, 0.15)
+
+            # Set up subplot
+            error_setup = ng.PlotSetup(
+                axtitle=f"Station: {station}",
+                xlabel=f"Hours past {initial_epoch_utc} [TDB]",
+                ylabel="IFMS res - computed res [Hz]",
+                ylim=comp_ylim,
+            )
 
             comp_setup = ng.PlotSetup(
                 axtitle=f"Station: {station}",
@@ -105,11 +109,15 @@ if __name__ == "__main__":
                 ylim=comp_ylim,
             )
 
-            with fig.subplot(setup=error_setup) as subfig:
-                subfig.line(cdt, cres - rres, fmt=".", label="Current")
-                subfig.line(cdt, luigi - rres, fmt=".", label="Luigi")
-
             with fig.subplot(setup=comp_setup) as subfig:
-                subfig.line(rdt, rres, fmt=".", label="Reference")
-                subfig.line(cdt, luigi, fmt=".", label="Luigi")
-                subfig.line(cdt, cres, fmt=".", label="Current")
+                subfig.line(cdt, cres, fmt=".", label="Computed")
+                subfig.line(rdt, rres, fmt=".", label="From IFMS")
+                # if luigi is not None:
+                #     subfig.line(rdt, luigi, fmt=".", label="Luigi")
+                # subfig.line(rdt, cres, fmt=".", label="Predicted")
+                # subfig.line(cdt, luigi, fmt=".", label="Luigi")
+                # subfig.line(cdt, cobs, fmt=".", label="Predicted")
+
+            with fig.subplot(setup=error_setup) as subfig:
+                subfig.line(cdt, rres - cres, fmt=".")
+                # subfig.line(cdt, luigi - rres, fmt=".", label="Luigi")

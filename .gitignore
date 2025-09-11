@@ -11,3 +11,4 @@ code/residuals
 *cache*
 *egg-info*
 _version.py
+*.npy

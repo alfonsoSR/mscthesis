@@ -3,7 +3,7 @@ import numpy as np
 from tudatpy.astro import time_representation as ttime
 from pathlib import Path
 from tudatpy import data as tdata
-from .utils import transform_utc_epochs_to_et
+from .utils import transform_utc_epochs_to_tdb
 
 
 @dataclass
@@ -13,7 +13,8 @@ class TwoWayDopplerObservations:
     observation_values: np.ndarray
     ramping_f0: np.ndarray
     ramping_df: np.ndarray
-    ramping_tdb0: list[ttime.Time]
+    ramping_start_tdb: np.ndarray
+    ramping_stop_tdb: np.ndarray
     residuals: np.ndarray
 
 
@@ -42,148 +43,3 @@ def sort_ifms_files_by_epoch(ifms_list: list[Path]) -> list[Path]:
         ]
     )
     return [ifms_list[idx] for idx in mask]
-
-
-def load_doppler_observations_from_ifms_files(
-    source_files: list[Path],
-) -> TwoWayDopplerObservations:
-
-    # Sort files by epoch
-    source_files = sort_ifms_files_by_epoch(source_files)
-
-    # Initialize containers
-    observation_epochs_et = []
-    observation_values = []
-    _ramping_f0 = []
-    _ramping_df = []
-    _ramping_utc0 = []
-    residuals = []
-    tropo_correction = []
-
-    # Fill containers with data from files
-    for ifms in source_files:
-
-        # Load content into object
-        content = tdata.read_ifms_file(
-            str(ifms), apply_tropospheric_correction=False
-        ).raw_datamap
-        print(ifms.name)
-
-        # Update containers with observation data
-        observation_epochs_et += content["tdb_seconds_since_j2000"]
-        observation_values += content["doppler_averaged_frequency_hz"]
-        residuals += content["doppler_noise_hz"]
-        tropo_correction += content["doppler_troposphere_correction"]
-
-        # Update containers with ramping data
-        _ramping_f0.append(content["transmission_frequency_constant_term"])
-        _ramping_df.append(content["transmission_frequency_linear_term"])
-        _ramping_utc0.append(content["ramp_reference_time"])
-
-    # Fill gaps between observation intervals
-    ramping_f0: list[str] = []
-    ramping_df: list[str] = []
-    ramping_utc0: list[str] = []
-
-    if len(_ramping_f0) == 1:
-        ramping_f0 = _ramping_f0[0]
-        ramping_df = _ramping_df[0]
-        ramping_utc0 = _ramping_utc0[0]
-    else:
-        for idx, f0 in enumerate(_ramping_f0[:-1]):
-
-            # Get current and next values for reference frequency
-            current_f0 = f0
-            next_f0 = _ramping_f0[idx + 1]
-
-            # Get current and next values for ramp
-            current_df = _ramping_df[idx]
-            next_df = _ramping_df[idx + 1]
-
-            # Get current and next sets of reference epochs
-            current_ref = _ramping_utc0[idx].copy()
-            next_ref = _ramping_utc0[idx + 1].copy()
-
-            # Get intermediate epoch between intervals
-            last_epoch_current = ttime.DateTime.from_iso_string(current_ref[-1])
-            first_epoch_next = ttime.DateTime.from_iso_string(next_ref[0])
-            diff = (
-                first_epoch_next.to_epoch_time_object()
-                - last_epoch_current.to_epoch_time_object()
-            )
-            intermediate_epoch = last_epoch_current.to_epoch_time_object() + (
-                0.5 * diff
-            )
-            # print(
-            #     current_ref[-1],
-            #     next_ref[0],
-            #     diff.to_float(),
-            #     ttime.DateTime.from_epoch_time_object(
-            #         intermediate_epoch
-            #     ).to_iso_string(),
-            # )
-            if diff <= ttime.Time(2):
-                raise NotImplementedError(
-                    f"We want separation by more than 1 second: {diff.to_float()} : {first_epoch_next.to_iso_string()} : {last_epoch_current.to_iso_string()}"
-                )
-
-            # Extend current at intermediate -1
-            current_ref.append(
-                ttime.DateTime.from_epoch_time_object(
-                    intermediate_epoch - ttime.Time(1)
-                ).to_iso_string()
-            )
-            next_ref_first = ttime.DateTime.from_epoch_time_object(
-                intermediate_epoch
-            ).to_iso_string()
-            # print(
-            #     current_ref[-1],
-            #     _ramping_utc0[idx + 1][-1],
-            #     ttime.DateTime.from_epoch_time_object(
-            #         intermediate_epoch
-            #     ).to_iso_string(),
-            # )
-
-            # Add to containers
-            ramping_f0 += current_f0
-            ramping_f0.append(current_f0[-1])
-            ramping_f0.append(next_f0[0])
-
-            ramping_df += current_df
-            ramping_df.append(current_df[-1])
-            ramping_df.append(next_df[0])
-
-            ramping_utc0 += current_ref
-            ramping_utc0.append(next_ref_first)
-
-    # Remove invalid values
-    for idx, val in enumerate(ramping_df):
-        if val == "-99999.999999":
-            ramping_df[idx] = "0"
-
-    # Transform reference ramping epochs to TDB
-    # ramping_utc0 = [
-    #     ttime.DateTime.from_iso_string(utci).to_epoch_time_object()
-    #     for utci in ramping_utc0
-    # ]
-    ramping_tdb0 = transform_utc_epochs_to_et(
-        [
-            ttime.DateTime.from_iso_string(utci).to_epoch_time_object()
-            for utci in ramping_utc0
-        ],
-        np.array([0.0, 0.0, 0.0]),
-    )
-
-    print(f"End")
-
-    return TwoWayDopplerObservations(
-        observation_epochs_et=np.array(
-            [ttime.Time(float(ti)) for ti in observation_epochs_et]
-        ),
-        observation_values=np.array(observation_values, dtype=float)
-        - np.array(tropo_correction, dtype=float),
-        ramping_f0=np.array(ramping_f0, dtype=float),
-        ramping_df=np.array(ramping_df, dtype=float),
-        ramping_tdb0=ramping_tdb0,
-        residuals=np.array(residuals, dtype=float),
-    )
