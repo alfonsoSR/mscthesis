@@ -18,9 +18,6 @@ from tudatpy.estimation import (
 )
 import numpy as np
 from tudatpy.math import interpolators as tinterp
-from tudatpy.dynamics.environment_setup.ground_station import (
-    get_station_reference_state_itrf2000,
-)
 from tudatpy import data as tdata
 from matplotlib import pyplot as plt
 
@@ -210,7 +207,7 @@ def define_system_of_bodies_from_raw_observations(
             "2000-01-01T00:00:00"
         )
         try:
-            ref_state_itrf2000 = get_station_reference_state_itrf2000(
+            ref_state_itrf2000 = putils.get_station_reference_state_itrf2000(
                 station_name
             )
         except KeyError:

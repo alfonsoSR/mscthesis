@@ -6,6 +6,7 @@ from tudatpy.astro import time_representation as ttime
 from tudatpy import data as tdata
 from dataclasses import dataclass
 import numpy as np
+from tudatpy.dynamics import environment_setup as tenvs
 
 
 def generate_random_color():
@@ -108,3 +109,28 @@ def transform_utc_epochs_to_tdb(
         )
         for utc_epoch in utc_epochs
     ]
+
+
+def get_station_reference_state_itrf2000(station_name: str) -> np.ndarray:
+    """Get ITRF2000 state of station at 2000-01-01T00:00:00
+
+    The state of the ground stations is read from the catalogs in
+    `.tudat/resource/station_locations`
+
+    :param station_name: Name of the ground station as defined in the catalog
+    :return reference_state: Cartesian state of station at reference epoch in ITRF2000
+    """
+
+    evn_positions = tenvs.ground_station.get_vlbi_station_positions()
+    evn_velocities = tenvs.ground_station.get_vlbi_station_velocities()
+
+    if station_name not in evn_positions:
+        raise KeyError(
+            f"The ITRF2000 state of station {station_name} is not available"
+        )
+
+    # Transform position and velocity to SI units
+    station_position = evn_positions[station_name]
+    station_velocity = evn_velocities[station_name] / (1000 * 365 * 86400)
+
+    return np.array([station_position, station_velocity]).flatten()
