@@ -3,7 +3,6 @@ from tudatpy.dynamics.environment_setup import BodyListSettings
 import spiceypy
 from pathlib import Path
 from tudatpy.astro import time_representation as ttime
-from tudatpy import data as tdata
 from dataclasses import dataclass
 import numpy as np
 from tudatpy.dynamics import environment_setup as tenvs

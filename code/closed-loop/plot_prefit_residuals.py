@@ -30,8 +30,8 @@ def get_comparison_version(savefig_flag: bool) -> int:
 if __name__ == "__main__":
 
     # Get comparison version from file
-    savefig: bool = False
-    filename: str = "email_martin"
+    savefig: bool = True
+    filename: str = "earth_spherical"
     cvrsn = get_comparison_version(savefig)
     skip = ["MALARGUE", "CEBREROS", "DSS65"]
 

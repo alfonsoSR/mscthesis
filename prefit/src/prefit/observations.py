@@ -401,8 +401,8 @@ def load_doppler_observations_from_list_of_ifms_files(
         observation_epochs_et=np.array(
             [ttime.Time(float(ti)) for ti in observation_epochs_et]
         ),
-        observation_values=np.array(observation_values, dtype=float),
-        # - np.array(tropo_correction, dtype=float),
+        observation_values=np.array(observation_values, dtype=float)
+        - np.array(tropo_correction, dtype=float),
         ramping_f0=np.array(ramping_f0, dtype=float)[:-1],
         ramping_df=np.array(ramping_df, dtype=float)[:-1],
         ramping_start_tdb=np.array(ramping_tdb0)[:-1],

@@ -18,8 +18,6 @@ from tudatpy.estimation import (
 )
 import numpy as np
 from tudatpy.math import interpolators as tinterp
-from tudatpy import data as tdata
-from matplotlib import pyplot as plt
 
 
 def add_empty_body_with_interpolated_ephemerides(
@@ -176,6 +174,15 @@ def define_system_of_bodies_from_raw_observations(
         body_name_to_use="Earth",
     )
 
+    # Define shape settings (GRS80 - Recommended for VMF3)
+    earth_settings.shape_settings = tenvs.shape.oblate_spherical(
+        equatorial_radius=6378136.6,
+        flattening=(1.0 / 298.25642),
+    )
+
+    # # Define atmospheric settings
+    # earth_settings.atmosphere_settings = tenvs.atmosphere.nrlmsise00()
+
     # # Define shape deformation settings (Displacements of ground stations)
     # earth_settings.shape_deformation_settings = [
     #     tenvs.shape_deformation.basic_solid_body_tidal(
@@ -183,17 +190,6 @@ def define_system_of_bodies_from_raw_observations(
     #         displacement_love_numbers={2: (0.6, 0.08)},
     #     )
     # ]
-
-    # # Refer gravity field of the Earth to the same frame as its rotation model
-    # __gfield_settings = environment_settings.get("Earth").gravity_field_settings
-    # assert isinstance(
-    #     __gfield_settings,
-    #     tenvs.gravity_field.SphericalHarmonicsGravityFieldSettings,
-    # )
-    # __gfield_settings.associated_reference_frame = environment_settings.get(
-    #     "Earth"
-    # ).rotation_model_settings.target_frame
-    # environment_settings.get("Earth").gravity_field_settings = __gfield_settings
 
     # Define settings for ground stations (TODO: Do this manually)
     stations_to_create = list(raw_observations_per_station.keys())
@@ -248,36 +244,6 @@ def define_system_of_bodies_from_raw_observations(
 
     earth_settings.ground_station_settings = ground_station_settings
 
-    # shape_deformation_settings = [
-    #     tenvs.shape_deformation.basic_solid_body_tidal(
-    #         tide_raising_bodies=["Sun", "Moon"],
-    #         displacement_love_numbers={2: (0.6, 0.08)},
-    #     )
-    # ]
-    # environment_settings.get("Earth").shape_deformation_settings = (
-    #     shape_deformation_settings
-    # )
-
-    # exit(0)
-
-    # sta = environment_settings.get("Earth").ground_station_settings[0]
-    # for item in sta.station_motion_settings:
-
-    #     match item.model_type:
-    #         case tenvs.ground_station.StationMotionModelTypes.linear:
-    #             assert isinstance(
-    #                 item, tenvs.ground_station.LinearGroundStationMotionSettings
-    #             )
-    #             print("Has linear motion settings")
-    #             pass
-    #         case tenvs.ground_station.StationMotionModelTypes.body_deformation:
-    #             print("Has body deformation motion settings")
-    #             pass
-    #         case _:
-    #             print(f"Type not considered: {item.model_type}")
-
-    # exit(0)
-
     # Add empty bodies for corrections
     for cbody in correction_bodies:
         environment_settings = add_empty_body_with_interpolated_ephemerides(
@@ -320,6 +286,29 @@ def define_system_of_bodies_from_raw_observations(
         ephemeris=hga_ephemeris,
     )
 
+    # Add tropospheric data to the ground stations
+    vmf3_path = Path().home() / ".pride/data/tropospheric"
+    vmf3_files = [str(xi) for xi in vmf3_path.glob("*.v3gr_r")]
+    tomss.light_time_corrections.set_vmf_troposphere_data(
+        data_files=vmf3_files,
+        file_has_meteo=True,
+        file_has_gradient=True,
+        bodies=bodies,
+        set_troposphere_data=True,
+        set_meteo_data=True,
+    )
+
+    # earth_body = bodies.get("Earth")
+    # for ground_station in earth_body.ground_station_list:
+
+    #     gs = earth_body.get_ground_station(ground_station)
+    #     some = ttime.DateTime.from_modified_julian_day(56654.0)
+    #     temp = gs.temperature_function(some.to_epoch()) - 273.15
+    #     print(
+    #         f"Station: {ground_station} - Epoch: {some.to_iso_string()} "
+    #         f"- Temperature: {temp}"
+    #     )
+
     return bodies
 
 
@@ -343,23 +332,9 @@ def group_ifms_data_per_station(
         metadata = pio.get_metadata_from_ifms_filename(file)
 
         # Get station name from metadata
-        match metadata["station_id"]:
-            case "32":
-                station_name = "NWNORCIA"
-            case "62":
-                station_name = "CEBREROS"
-            case "63":
-                station_name = "DSS63"
-            case "84":
-                station_name = "MALARGUE"
-            case "14":
-                station_name = "DSS14"
-            case "65":
-                station_name = "DSS65"
-            case _:
-                raise ValueError(
-                    f"Invalid station id: {metadata['station_id']}"
-                )
+        station_name = pobs.identify_station_from_id(
+            int(metadata["station_id"])
+        )
 
         # Update collection with file
         if station_name not in ifms_per_station:
@@ -368,20 +343,6 @@ def group_ifms_data_per_station(
             ifms_per_station[station_name].append(file)
 
     return ifms_per_station
-
-    # # Sort station files by epoch
-    # for station_name in ifms_per_station:
-    #     ifms_per_station[station_name] = pio.sort_ifms_files_by_epoch(
-    #         ifms_per_station[station_name]
-    #     )
-
-    # # Load Doppler data for each station
-    # return {
-    #     station_name: pobs.load_doppler_observations_from_ifms_files(
-    #         ifms_per_station[station_name]
-    #     )
-    #     for station_name in ifms_per_station
-    # }
 
 
 def define_observation_collection_for_station(
@@ -462,7 +423,8 @@ if __name__ == "__main__":
 
         # Load data from IFMS files and group per station
         ifms_paths_per_station = group_ifms_data_per_station(
-            ifms_dir, ["133612305", "133642046", "M84", "M62", "M14", "M63"]
+            ifms_dir,
+            ["133612305", "133642046", "M84", "M62", "M14", "M63"],
         )
         data_per_station: dict[str, pio.TwoWayDopplerObservations] = {}
         for _station, _station_ifms in ifms_paths_per_station.items():
@@ -504,6 +466,13 @@ if __name__ == "__main__":
                     perturbing_bodies=["Sun", "Mars"],
                 )
             ]
+            if station_name != "NWNORCIA":
+                lt_correction_settings.append(
+                    tomss.light_time_corrections.vmf3_tropospheric_light_time_correction(
+                        body_with_atmosphere_name="Earth",
+                        use_gradient_correction=True,
+                    )
+                )
 
             # Define observation model for station
             link_definitions = observations.get_link_definitions_for_observables(
