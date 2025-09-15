@@ -6,10 +6,11 @@ figures
 code/residuals
 .vscode
 .DS_Store
+code/closed-loop/*.txt
 
 # Python
 *cache*
 *egg-info*
 _version.py
 *.npy
-*.txt
+

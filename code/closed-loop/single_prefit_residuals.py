@@ -4,6 +4,14 @@ import csv
 import numpy as np
 from astropy import time
 from prefit import paths as ppaths
+import argparse
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument("label", help="Label for the figure title and file name")
+parser.add_argument(
+    "-s", action="store_true", dest="save_fig", help="Save the figure"
+)
 
 source_dir = ppaths.outdir / "prefit-closed-loop"
 figdir = ppaths.figdir / "prefit-closed-loop"
@@ -30,8 +38,10 @@ def get_comparison_version(savefig_flag: bool) -> str:
 if __name__ == "__main__":
 
     # Get comparison version from file
-    savefig: bool = True
-    filename: str = "relativistic"
+
+    args = parser.parse_args()
+    savefig = bool(args.save_fig)
+    filename = str(args.label)
     cvrsn = get_comparison_version(savefig)
     skip = ["MALARGUE", "CEBREROS", "DSS65"]
 
