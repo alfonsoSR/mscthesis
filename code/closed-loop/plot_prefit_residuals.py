@@ -15,7 +15,7 @@ def get_comparison_version(savefig_flag: bool) -> int:
 
     cache_file = Path(__file__).parent / "comparison_version.txt"
     with cache_file.open() as buffer:
-        comparison_version = int(buffer.read(1))
+        comparison_version = int(buffer.readline().strip())
 
     if not savefig_flag:
         return comparison_version
@@ -30,7 +30,7 @@ def get_comparison_version(savefig_flag: bool) -> int:
 if __name__ == "__main__":
 
     # Get comparison version from file
-    savefig: bool = True
+    savefig: bool = False
     filename: str = "earth_spherical"
     cvrsn = get_comparison_version(savefig)
     skip = ["MALARGUE", "CEBREROS", "DSS65"]

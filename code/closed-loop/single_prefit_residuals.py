@@ -11,27 +11,27 @@ figdir.mkdir(exist_ok=True)
 LETTERS = iter([x for x in "abcdefghijklmnopqrstuvwxyz"])
 
 
-def get_comparison_version(savefig_flag: bool) -> int:
+def get_comparison_version(savefig_flag: bool) -> str:
 
     cache_file = Path(__file__).parent / "comparison_version.txt"
     with cache_file.open() as buffer:
-        comparison_version = int(buffer.read(1))
+        comparison_version = int(buffer.readline().strip())
 
     if not savefig_flag:
-        return comparison_version
+        return f"v{comparison_version}"
 
     # Update version
     with cache_file.open("w") as buffer:
         buffer.write(str(comparison_version + 1))
 
-    return comparison_version
+    return f"v{comparison_version}"
 
 
 if __name__ == "__main__":
 
     # Get comparison version from file
     savefig: bool = True
-    filename: str = "earth_spherical"
+    filename: str = "relativistic"
     cvrsn = get_comparison_version(savefig)
     skip = ["MALARGUE", "CEBREROS", "DSS65"]
 
@@ -48,12 +48,15 @@ if __name__ == "__main__":
 
     # Figure setup
     figure_setup = ng.PlotSetup(
-        canvas_title="Pre-fit residuals: Closed-loop Doppler",
+        canvas_title=f"Pre-fit residuals: {filename} - {cvrsn}",
         xlabel=f"Hours past {initial_epoch_utc} [UTC]",
         ylabel="Residual [Hz]",
         ylim=(-0.06, 0.06),
         canvas_size=(12, 4),
         legend_location="upper right",
+        save=savefig,
+        dir=ppaths.figdir / "prefit-closed-loop",
+        name=f"{filename}-{cvrsn}.png",
     )
 
     with ng.SingleAxis(figure_setup) as fig:

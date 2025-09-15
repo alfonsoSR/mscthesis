@@ -12,3 +12,4 @@ code/residuals
 *egg-info*
 _version.py
 *.npy
+*.txt

@@ -286,17 +286,25 @@ def define_system_of_bodies_from_raw_observations(
         ephemeris=hga_ephemeris,
     )
 
-    # Add tropospheric data to the ground stations
-    vmf3_path = Path().home() / ".pride/data/tropospheric"
-    vmf3_files = [str(xi) for xi in vmf3_path.glob("*.v3gr_r")]
-    tomss.light_time_corrections.set_vmf_troposphere_data(
-        data_files=vmf3_files,
-        file_has_meteo=True,
-        file_has_gradient=True,
-        bodies=bodies,
-        set_troposphere_data=True,
-        set_meteo_data=True,
-    )
+    # # Add tropospheric data to the ground stations
+    # vmf3_path = Path().home() / ".pride/data/tropospheric"
+    # vmf3_files = [str(xi) for xi in vmf3_path.glob("*.v3gr_r")]
+    # tomss.light_time_corrections.set_vmf_troposphere_data(
+    #     data_files=vmf3_files,
+    #     file_has_meteo=True,
+    #     file_has_gradient=True,
+    #     bodies=bodies,
+    #     set_troposphere_data=True,
+    #     set_meteo_data=True,
+    # )
+
+    # # Add ionospheric data to the ground stations
+    # ionex_path = Path().home() / ".pride/data/ionospheric"
+    # ionex_files = [str(xi) for xi in ionex_path.glob("*.13i")]
+    # tomss.light_time_corrections.set_ionosphere_model_from_ionex(
+    #     data_files=ionex_files,
+    #     bodies=bodies,
+    # )
 
     # earth_body = bodies.get("Earth")
     # for ground_station in earth_body.ground_station_list:
@@ -310,6 +318,77 @@ def define_system_of_bodies_from_raw_observations(
     #     )
 
     return bodies
+
+
+def update_system_of_bodies_for_light_time_corrections(
+    system_of_bodies: tenv.SystemOfBodies,
+    troposphere: bool,
+    ionosphere: bool,
+    relativistic: bool,
+) -> tuple[
+    tenv.SystemOfBodies,
+    dict[str, tomss.light_time_corrections.LightTimeCorrectionSettings],
+]:
+
+    settings: dict[
+        str, tomss.light_time_corrections.LightTimeCorrectionSettings
+    ] = {}
+
+    data_path = Path().home() / ".pride/data"
+    ionex_dir = data_path / "ionospheric"
+    tropo_dir = data_path / "tropospheric"
+
+    if troposphere:
+
+        # Add tropospheric data to ground stations
+        vmf3_files = [str(xi) for xi in tropo_dir.glob("*.v3gr_r")]
+        tomss.light_time_corrections.set_vmf_troposphere_data(
+            data_files=vmf3_files,
+            file_has_meteo=True,
+            file_has_gradient=True,
+            bodies=system_of_bodies,
+            set_troposphere_data=True,
+            set_meteo_data=True,
+        )
+
+        # Add troposphere settings to LT corrections
+        settings["troposphere"] = (
+            tomss.light_time_corrections.vmf3_tropospheric_light_time_correction(
+                body_with_atmosphere_name="Earth",
+                use_gradient_correction=True,
+            )
+        )
+
+    if ionosphere:
+
+        # Add ionospheric data to ground stations
+        ionex_files = [str(xi) for xi in ionex_dir.glob("*.13i")]
+        tomss.light_time_corrections.set_ionosphere_model_from_ionex(
+            data_files=ionex_files,
+            bodies=system_of_bodies,
+        )
+
+        # Add ionospheric settings to LT corrections
+        settings["ionosphere"] = (
+            tomss.light_time_corrections.ionex_ionospheric_light_time_correction(
+                body_with_ionosphere_name="Earth",
+                ionosphere_height=10.0,
+            )
+        )
+
+    if relativistic:
+
+        # Get bodies to take into account
+        perturbing_bodies = ["Sun", "Mars", "Earth"]
+
+        # Define settings
+        settings["relativistic"] = (
+            tomss.light_time_corrections.first_order_relativistic_light_time_correction(
+                perturbing_bodies=perturbing_bodies
+            )
+        )
+
+    return system_of_bodies, settings
 
 
 def group_ifms_data_per_station(
@@ -413,10 +492,13 @@ if __name__ == "__main__":
     # Paths
     metakernel = ppaths.datadir / "metak_mex.tm"
     ifms_dir = ppaths.psadir
-    # ifms_dir = ppaths.psadir.parent / "2008/data"
-    # ifms_dir = ppaths.datadir / "ifms/filtered"
     output_dir = ppaths.outdir / "prefit-closed-loop"
     output_dir.mkdir(exist_ok=True)
+
+    # Control flags
+    correct_ionosphere: bool = True
+    correct_troposphere: bool = True
+    correct_relativistic: bool = True
 
     try:
         spice.load_kernel(str(metakernel))
@@ -447,6 +529,16 @@ if __name__ == "__main__":
             data_per_station,
         )
 
+        # Update system of bodies with data for light-time corrections
+        bodies, lt_correction_settings_dict = (
+            update_system_of_bodies_for_light_time_corrections(
+                system_of_bodies=bodies,
+                troposphere=correct_troposphere,
+                ionosphere=correct_ionosphere,
+                relativistic=correct_relativistic,
+            )
+        )
+
         # Process observations for each station
         output_per_station: dict[str, np.ndarray] = {}
         for station_name, contents in data_per_station.items():
@@ -460,19 +552,15 @@ if __name__ == "__main__":
                 station_raw_data=contents,
             )
 
-            # Define corrections to the light-time equation
-            lt_correction_settings = [
-                tomss.light_time_corrections.first_order_relativistic_light_time_correction(
-                    perturbing_bodies=["Sun", "Mars"],
-                )
-            ]
-            if station_name != "NWNORCIA":
-                lt_correction_settings.append(
-                    tomss.light_time_corrections.vmf3_tropospheric_light_time_correction(
-                        body_with_atmosphere_name="Earth",
-                        use_gradient_correction=True,
-                    )
-                )
+            # Define settings for light-time corrections
+            lt_correction_settings = []
+            for key, val in lt_correction_settings_dict.items():
+
+                if key == "troposphere" and station_name == "NWNORCIA":
+                    print("Skipping tropo for nwnorcia")
+                    continue
+
+                lt_correction_settings.append(val)
 
             # Define observation model for station
             link_definitions = observations.get_link_definitions_for_observables(
