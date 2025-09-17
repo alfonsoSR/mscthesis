@@ -276,13 +276,13 @@ def load_doppler_observations_from_list_of_ifms_files(
     source_files = sort_ifms_files_by_epoch(source_files)
 
     # Initialize containers
-    observation_epochs_et = []
-    observation_values = []
+    _observation_epochs_et = []
+    _observation_values = []
     _ramping_f0 = []
     _ramping_df = []
     _ramping_utc0 = []
-    residuals = []
-    tropo_correction = []
+    _residuals = []
+    _tropo_correction = []
 
     # Fill containers with data from files
     for ifms in source_files:
@@ -291,13 +291,12 @@ def load_doppler_observations_from_list_of_ifms_files(
         content = tdata.read_ifms_file(
             str(ifms), apply_tropospheric_correction=False
         ).raw_datamap
-        print(ifms.name)
 
         # Update containers with observation data
-        observation_epochs_et += content["tdb_seconds_since_j2000"]
-        observation_values += content["doppler_averaged_frequency_hz"]
-        residuals += content["doppler_noise_hz"]
-        tropo_correction += content["doppler_troposphere_correction"]
+        _observation_epochs_et += content["tdb_seconds_since_j2000"]
+        _observation_values += content["doppler_averaged_frequency_hz"]
+        _residuals += content["doppler_noise_hz"]
+        _tropo_correction += content["doppler_troposphere_correction"]
 
         # Update containers with ramping data
         _ramping_f0.append(content["transmission_frequency_constant_term"])
@@ -380,10 +379,23 @@ def load_doppler_observations_from_list_of_ifms_files(
             ramping_utc0 += current_ref
             ramping_utc0.append(next_ref_first)
 
-    # Remove invalid values
+    # Remove invalid values from ramping tables
     for idx, val in enumerate(ramping_df):
         if val == "-99999.999999":
             ramping_df[idx] = "0"
+
+    # Remove invalid values from observation set
+    observation_epochs_et: list[str] = []
+    observation_values: list[str] = []
+    tropo_correction: list[str] = []
+    residuals: list[str] = []
+    for idx, vali in enumerate(_observation_values):
+        if vali == "-999999999.999999":
+            continue
+        observation_epochs_et.append(_observation_epochs_et[idx])
+        observation_values.append(vali)
+        residuals.append(_residuals[idx])
+        tropo_correction.append(_tropo_correction[idx])
 
     # Transform reference ramping epochs to TDB
     # ramping_utc0 = [
