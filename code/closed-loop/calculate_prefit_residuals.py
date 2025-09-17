@@ -18,41 +18,16 @@ from tudatpy.estimation import (
 )
 import numpy as np
 from tudatpy.math import interpolators as tinterp
+import shutil
+import argparse
+from matplotlib import pyplot as plt
 
-
-def add_empty_body_with_interpolated_ephemerides(
-    environment_settings: tenvs.BodyListSettings,
-    body_name: str,
-    initial_epoch: ttime.Time,
-    final_epoch: ttime.Time,
-    step: ttime.Time,
-    ephemeris_frame_origin: str,
-    ephemeris_frame_orientation: str,
-) -> tenvs.BodyListSettings:
-
-    # Add empty settings for body
-    environment_settings.add_empty_settings(body_name)
-    body_settings = environment_settings.get(body_name)
-
-    # Add interpolated ephemerides from spice
-    body_settings.ephemeris_settings = tenvs.ephemeris.interpolated_spice(
-        initial_time=initial_epoch,
-        final_time=final_epoch,
-        time_step=step,
-        frame_origin=ephemeris_frame_origin,
-        frame_orientation=ephemeris_frame_orientation,
-    )
-
-    # Add point-mass gravity field settings
-    body_settings.gravity_field_settings = tenvs.gravity_field.central_spice(
-        body_name
-    )
-
-    return environment_settings
+Parser = argparse.ArgumentParser()
+Parser.add_argument("config_file", help="Path to configuration file")
 
 
 def define_system_of_bodies_from_raw_observations(
-    spacecraft_name: str,
+    configuration: pio.PrefitSettings,
     raw_observations_per_station: dict[str, pio.TwoWayDopplerObservations],
 ) -> tenv.SystemOfBodies:
 
@@ -68,14 +43,15 @@ def define_system_of_bodies_from_raw_observations(
     assert isinstance(final_epoch_et, ttime.Time)
 
     # General configuration: Time interval in UTC
-    buffer_time = ttime.Time(86400.0)
+    buffer_time = ttime.Time(configuration.time["buffer"])
 
     # General configuration: System of bodies
     global_frame_origin: str = "SSB"
     global_frame_orientation: str = "J2000"
     central_body: str = "Mars"
     default_step: ttime.Time = ttime.Time(3600.0)
-    correction_bodies: list[str] = ["Sun", "Moon"]
+    correction_bodies: list[str] = configuration.light_time["massive_bodies"]
+    spacecraft_name: str = configuration.bodies["Spacecraft"]["name"]
 
     # Transform ET epochs to TDB
     initial_epoch_tdb = ttime.DateTime.from_julian_day(
@@ -110,23 +86,36 @@ def define_system_of_bodies_from_raw_observations(
     # Position of HGA with respect to reference point of spacecraft
     mex_settings.rotation_model_settings = tenvs.rotation_model.spice(
         base_frame=global_frame_orientation,
-        target_frame="MEX_SPACECRAFT",
+        target_frame=configuration.bodies["Spacecraft"]["body_fixed_frame"],
     )
 
     # Define settings for Mars
     ############################################
     environment_settings.add_empty_settings("Mars")
     mars_settings = environment_settings.get("Mars")
+    mars_config = configuration.bodies["Mars"]
 
     # Define settings for translational ephemerides
-    mars_settings.ephemeris_settings = tenvs.ephemeris.interpolated_spice(
-        initial_time=initial_epoch_buffer,
-        final_time=final_epoch_buffer,
-        time_step=default_step,
-        frame_orientation=global_frame_orientation,
-        frame_origin=global_frame_origin,
-        body_name_to_use="Mars",
-    )
+    match mars_config["translational_ephemerides"]:
+        case "spice":
+            mars_settings.ephemeris_settings = tenvs.ephemeris.direct_spice(
+                frame_origin=global_frame_origin,
+                frame_orientation=global_frame_orientation,
+                body_name_to_use="Mars",
+            )
+        case "interpolated_spice":
+            mars_settings.ephemeris_settings = (
+                tenvs.ephemeris.interpolated_spice(
+                    initial_time=initial_epoch_buffer,
+                    final_time=final_epoch_buffer,
+                    time_step=default_step,
+                    frame_orientation=global_frame_orientation,
+                    frame_origin=global_frame_origin,
+                    body_name_to_use="Mars",
+                )
+            )
+        case _:
+            raise ValueError("Invalid ephemeris type for Mars")
 
     # Define basic mass settings
     mars_settings.gravity_field_settings = tenvs.gravity_field.central_spice(
@@ -137,6 +126,7 @@ def define_system_of_bodies_from_raw_observations(
     ############################################
     environment_settings.add_empty_settings("Earth")
     earth_settings = environment_settings.get("Earth")
+    earth_config = configuration.bodies["Earth"]
 
     # Basic gravity field settings for light-time correction
     earth_settings.gravity_field_settings = tenvs.gravity_field.central_spice(
@@ -144,41 +134,70 @@ def define_system_of_bodies_from_raw_observations(
     )
 
     # Define settings for rotation model
-    cio_and_tdbtt_interp_settings = tinterp.InterpolatorGenerationSettings(
-        interpolator_settings=tinterp.cubic_spline_interpolation(),
-        initial_time=initial_epoch_buffer,
-        final_time=final_epoch_buffer,
-        time_step=default_step,
-    )
-    eop_interp_settings = tinterp.InterpolatorGenerationSettings(
-        interpolator_settings=tinterp.cubic_spline_interpolation(),
-        initial_time=initial_epoch_buffer,
-        final_time=final_epoch_buffer,
-        time_step=ttime.Time(60.0),
-    )
-    earth_settings.rotation_model_settings = tenvs.rotation_model.gcrs_to_itrs(
-        precession_nutation_theory=tenvs.rotation_model.IAUConventions.iau_2006,
-        base_frame=global_frame_orientation,
-        cio_interpolation_settings=cio_and_tdbtt_interp_settings,
-        tdb_to_tt_interpolation_settings=cio_and_tdbtt_interp_settings,
-        short_term_eop_interpolation_settings=eop_interp_settings,
-    )
+    match earth_config["rotation_model"]:
+        case "spice":
+            earth_settings.rotation_model_settings = tenvs.rotation_model.spice(
+                base_frame=global_frame_orientation,
+                target_frame="IAU_EARTH",
+            )
+        case "iers":
+            cio_and_tdbtt_interp_settings = (
+                tinterp.InterpolatorGenerationSettings(
+                    interpolator_settings=tinterp.cubic_spline_interpolation(),
+                    initial_time=initial_epoch_buffer,
+                    final_time=final_epoch_buffer,
+                    time_step=default_step,
+                )
+            )
+            eop_interp_settings = tinterp.InterpolatorGenerationSettings(
+                interpolator_settings=tinterp.cubic_spline_interpolation(),
+                initial_time=initial_epoch_buffer,
+                final_time=final_epoch_buffer,
+                time_step=ttime.Time(60.0),
+            )
+            earth_settings.rotation_model_settings = tenvs.rotation_model.gcrs_to_itrs(
+                precession_nutation_theory=tenvs.rotation_model.IAUConventions.iau_2006,
+                base_frame=global_frame_orientation,
+                cio_interpolation_settings=cio_and_tdbtt_interp_settings,
+                tdb_to_tt_interpolation_settings=cio_and_tdbtt_interp_settings,
+                short_term_eop_interpolation_settings=eop_interp_settings,
+            )
+        case _:
+            raise ValueError("Invalid rotation model for Earth")
 
     # Define settings for translational ephemerides
-    earth_settings.ephemeris_settings = tenvs.ephemeris.interpolated_spice(
-        initial_time=initial_epoch_buffer,
-        final_time=final_epoch_buffer,
-        time_step=default_step,
-        frame_origin=global_frame_origin,
-        frame_orientation=global_frame_orientation,
-        body_name_to_use="Earth",
-    )
+    match earth_config["translational_ephemerides"]:
+        case "spice":
+            earth_settings.ephemeris_settings = tenvs.ephemeris.direct_spice(
+                frame_origin=global_frame_origin,
+                frame_orientation=global_frame_orientation,
+                body_name_to_use="Earth",
+            )
+        case "interpolated_spice":
+            earth_settings.ephemeris_settings = (
+                tenvs.ephemeris.interpolated_spice(
+                    initial_time=initial_epoch_buffer,
+                    final_time=final_epoch_buffer,
+                    time_step=default_step,
+                    frame_orientation=global_frame_orientation,
+                    frame_origin=global_frame_origin,
+                    body_name_to_use="Earth",
+                )
+            )
+        case _:
+            raise ValueError("Invalid ephemeris type for Earth")
 
     # Define shape settings (GRS80 - Recommended for VMF3)
-    earth_settings.shape_settings = tenvs.shape.oblate_spherical(
-        equatorial_radius=6378136.6,
-        flattening=(1.0 / 298.25642),
-    )
+    match earth_config["shape_model"]:
+        case "grs80":
+            earth_settings.shape_settings = tenvs.shape.oblate_spherical(
+                equatorial_radius=6378136.6,
+                flattening=(1.0 / 298.25642),
+            )
+        case "spherical_spice":
+            earth_settings.shape_settings = tenvs.shape.spherical_spice()
+        case _:
+            raise ValueError("Invalid shape model for Earth")
 
     # # Define atmospheric settings
     # earth_settings.atmosphere_settings = tenvs.atmosphere.nrlmsise00()
@@ -198,6 +217,12 @@ def define_system_of_bodies_from_raw_observations(
     ] = []
     for station_name in stations_to_create:
 
+        # Get configuration for station
+        if station_name not in configuration.stations:
+            raise ValueError(f"Missing configuration for {station_name}")
+        station_config = configuration.stations[station_name]
+
+        # TODO: Control what to do based on station configuration
         # Reference epoch for ground station motion
         station_ref_epoch = ttime.DateTime.from_iso_string(
             "2000-01-01T00:00:00"
@@ -245,15 +270,28 @@ def define_system_of_bodies_from_raw_observations(
     earth_settings.ground_station_settings = ground_station_settings
 
     # Add empty bodies for corrections
-    for cbody in correction_bodies:
-        environment_settings = add_empty_body_with_interpolated_ephemerides(
-            environment_settings=environment_settings,
-            body_name=cbody,
-            initial_epoch=initial_epoch_buffer,
-            final_epoch=final_epoch_buffer,
-            step=default_step,
-            ephemeris_frame_origin=global_frame_origin,
-            ephemeris_frame_orientation=global_frame_orientation,
+    existing_bodies = list(configuration.bodies.keys())
+    empty_bodies = [
+        body for body in correction_bodies if body not in existing_bodies
+    ]
+    for cbody in empty_bodies:
+
+        # Add empty body
+        environment_settings.add_empty_settings(cbody)
+        cbody_settings = environment_settings.get(cbody)
+
+        # Define interpolated ephemerides
+        cbody_settings.ephemeris_settings = tenvs.ephemeris.interpolated_spice(
+            initial_time=initial_epoch_buffer,
+            final_time=final_epoch_buffer,
+            time_step=default_step,
+            frame_orientation=global_frame_orientation,
+            frame_origin=global_frame_origin,
+        )
+
+        # Define point-mass gravity field settings from spice
+        cbody_settings.gravity_field_settings = (
+            tenvs.gravity_field.central_spice(cbody)
         )
 
     # Create system of bodies
@@ -264,47 +302,76 @@ def define_system_of_bodies_from_raw_observations(
         spacecraft_name
     ).system_models.set_default_transponder_turnaround_ratio_function()
 
-    # Define position of HGA as reference point of the spacecraft
-    # TODO: Correct for position of COM wrt to LVI
-    cstate_hga_lvi_mexframe = spice.get_body_cartesian_state_at_epoch(
-        target_body_name="MEX_HGA",
-        observer_body_name="MEX_SPACECRAFT",
-        reference_frame_name="MEX_SPACECRAFT",
-        aberration_corrections="NONE",
-        ephemeris_time=initial_epoch_et,
-    )
-    hga_ephemeris_settings = tenvs.ephemeris.constant(
-        constant_state=cstate_hga_lvi_mexframe,
-        frame_origin="MEX_SPACECRAFT",
-        frame_orientation="MEX_SPACECRAFT",
-    )
-    hga_ephemeris = tenvs.ephemeris.create_ephemeris(
-        ephemeris_settings=hga_ephemeris_settings, body_name="HGA"
-    )
-    bodies.get(spacecraft_name).system_models.set_reference_point(
-        reference_point="HGA",
-        ephemeris=hga_ephemeris,
+    # Define positon of reference point within the spacecraft
+    spacecraft_config = configuration.bodies["Spacecraft"]
+    ref_point_name: str = spacecraft_config["reference_point"]
+    match ref_point_name:
+        case "MEX":
+            pass
+        case "HGA":
+
+            # Get offset of COM wrt LVI if defined
+            # Using this does not make sense, so I always set it to zero
+            if "x_com_offset" not in spacecraft_config:
+                print("Not using offsets")
+                com_pos = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+            else:
+                com_pos = np.array(
+                    [
+                        float(spacecraft_config["x_com_offset"]),
+                        float(spacecraft_config["y_com_offset"]),
+                        float(spacecraft_config["z_com_offset"]),
+                        0.0,
+                        0.0,
+                        0.0,
+                    ]
+                )
+
+            cstate_hga_lvi_mexframe = (
+                spice.get_body_cartesian_state_at_epoch(
+                    target_body_name="MEX_HGA",
+                    observer_body_name="MEX_SPACECRAFT",
+                    reference_frame_name="MEX_SPACECRAFT",
+                    aberration_corrections="NONE",
+                    ephemeris_time=initial_epoch_et,
+                )
+                - com_pos
+            )
+
+            hga_ephemeris_settings = tenvs.ephemeris.constant(
+                constant_state=cstate_hga_lvi_mexframe,
+                frame_origin="MEX_SPACECRAFT",
+                frame_orientation="MEX_SPACECRAFT",
+            )
+            hga_ephemeris = tenvs.ephemeris.create_ephemeris(
+                ephemeris_settings=hga_ephemeris_settings, body_name="HGA"
+            )
+            bodies.get(spacecraft_name).system_models.set_reference_point(
+                reference_point="HGA",
+                ephemeris=hga_ephemeris,
+            )
+        case _:
+            raise ValueError("Invalid reference point for spacecraft")
+
+    # Add tropospheric data to the ground stations
+    vmf3_path = Path().home() / ".pride/data/tropospheric"
+    vmf3_files = [str(xi) for xi in vmf3_path.glob("*.v3gr_r")]
+    tomss.light_time_corrections.set_vmf_troposphere_data(
+        data_files=vmf3_files,
+        file_has_meteo=True,
+        file_has_gradient=True,
+        bodies=bodies,
+        set_troposphere_data=True,
+        set_meteo_data=True,
     )
 
-    # # Add tropospheric data to the ground stations
-    # vmf3_path = Path().home() / ".pride/data/tropospheric"
-    # vmf3_files = [str(xi) for xi in vmf3_path.glob("*.v3gr_r")]
-    # tomss.light_time_corrections.set_vmf_troposphere_data(
-    #     data_files=vmf3_files,
-    #     file_has_meteo=True,
-    #     file_has_gradient=True,
-    #     bodies=bodies,
-    #     set_troposphere_data=True,
-    #     set_meteo_data=True,
-    # )
-
-    # # Add ionospheric data to the ground stations
-    # ionex_path = Path().home() / ".pride/data/ionospheric"
-    # ionex_files = [str(xi) for xi in ionex_path.glob("*.13i")]
-    # tomss.light_time_corrections.set_ionosphere_model_from_ionex(
-    #     data_files=ionex_files,
-    #     bodies=bodies,
-    # )
+    # Add ionospheric data to the ground stations
+    ionex_path = Path().home() / ".pride/data/ionospheric"
+    ionex_files = [str(xi) for xi in ionex_path.glob("*.13i")]
+    tomss.light_time_corrections.set_ionosphere_model_from_ionex(
+        data_files=ionex_files,
+        bodies=bodies,
+    )
 
     # earth_body = bodies.get("Earth")
     # for ground_station in earth_body.ground_station_list:
@@ -318,77 +385,6 @@ def define_system_of_bodies_from_raw_observations(
     #     )
 
     return bodies
-
-
-def update_system_of_bodies_for_light_time_corrections(
-    system_of_bodies: tenv.SystemOfBodies,
-    troposphere: bool,
-    ionosphere: bool,
-    relativistic: bool,
-) -> tuple[
-    tenv.SystemOfBodies,
-    dict[str, tomss.light_time_corrections.LightTimeCorrectionSettings],
-]:
-
-    settings: dict[
-        str, tomss.light_time_corrections.LightTimeCorrectionSettings
-    ] = {}
-
-    data_path = Path().home() / ".pride/data"
-    ionex_dir = data_path / "ionospheric"
-    tropo_dir = data_path / "tropospheric"
-
-    if troposphere:
-
-        # Add tropospheric data to ground stations
-        vmf3_files = [str(xi) for xi in tropo_dir.glob("*.v3gr_r")]
-        tomss.light_time_corrections.set_vmf_troposphere_data(
-            data_files=vmf3_files,
-            file_has_meteo=True,
-            file_has_gradient=True,
-            bodies=system_of_bodies,
-            set_troposphere_data=True,
-            set_meteo_data=True,
-        )
-
-        # Add troposphere settings to LT corrections
-        settings["troposphere"] = (
-            tomss.light_time_corrections.vmf3_tropospheric_light_time_correction(
-                body_with_atmosphere_name="Earth",
-                use_gradient_correction=True,
-            )
-        )
-
-    if ionosphere:
-
-        # Add ionospheric data to ground stations
-        ionex_files = [str(xi) for xi in ionex_dir.glob("*.13i")]
-        tomss.light_time_corrections.set_ionosphere_model_from_ionex(
-            data_files=ionex_files,
-            bodies=system_of_bodies,
-        )
-
-        # Add ionospheric settings to LT corrections
-        settings["ionosphere"] = (
-            tomss.light_time_corrections.ionex_ionospheric_light_time_correction(
-                body_with_ionosphere_name="Earth",
-                ionosphere_height=10.0,
-            )
-        )
-
-    if relativistic:
-
-        # Get bodies to take into account
-        perturbing_bodies = ["Sun", "Mars", "Earth"]
-
-        # Define settings
-        settings["relativistic"] = (
-            tomss.light_time_corrections.first_order_relativistic_light_time_correction(
-                perturbing_bodies=perturbing_bodies
-            )
-        )
-
-    return system_of_bodies, settings
 
 
 def group_ifms_data_per_station(
@@ -428,6 +424,7 @@ def define_observation_collection_for_station(
     bodies: tenv.SystemOfBodies,
     station: str,
     station_raw_data: pio.TwoWayDopplerObservations,
+    configuration: pio.PrefitSettings,
 ) -> tobs.ObservationCollection:
 
     # Load data from IFMS files into Python object
@@ -456,10 +453,16 @@ def define_observation_collection_for_station(
     )
 
     # Define link ends
-    transponder = tomss.links.body_reference_point_link_end_id(
-        body_name=spacecraft_name, reference_point_id="HGA"
-    )
-    # transponder = tomss.links.body_origin_link_end_id(spacecraft_name)
+    match configuration.bodies["Spacecraft"]["reference_point"]:
+        case "MEX":
+            transponder = tomss.links.body_origin_link_end_id(spacecraft_name)
+        case "HGA":
+            transponder = tomss.links.body_reference_point_link_end_id(
+                body_name=spacecraft_name,
+                reference_point_id="HGA",
+            )
+        case _:
+            raise ValueError("Invalid transponder setup from configuration")
     ground_station = tomss.links.body_reference_point_link_end_id(
         body_name="Earth",
         reference_point_id=station,
@@ -481,27 +484,96 @@ def define_observation_collection_for_station(
         reference_link_end=tomss.links.LinkEndType.receiver,
         ancilliary_settings=ancilliary,
     )
-
     observations = tobs.ObservationCollection([observation_set])
+
+    if configuration.observations["compress"]:
+        raise NotImplementedError("Still incompatible with compression")
+
+    # print(f"{station}", end="\n-----------------------------\n")
+    # print(len(original_observations.get_concatenated_observations()))
+
+    # # Compress observations if requested
+    # if configuration.observations["compress"]:
+    #     observations = (
+    #         tobss.observations_wrapper.create_compressed_doppler_collection(
+    #             original_observation_collection=original_observations,
+    #             compression_ratio=int(
+    #                 configuration.observations["integration_time"]
+    #             ),
+    #         )
+    #     )
+    # else:
+    #     observations = original_observations
+
+    # print(len(observations.get_concatenated_observations()))
+    # print(f"{station}", end="\n-----------------------------\n")
 
     return observations
 
 
+def load_spice_kernels(configuration: pio.PrefitSettings) -> None:
+
+    # Define path to metakernel
+    metakernel = ppaths.datadir / "metak.tm"
+
+    # Get path to specific kernels
+    match configuration.ephemerides["mex_translational"]:
+        case "ORMM":
+            extra_kernels = [
+                "ORMM_T19_131201000000_01033.BSP",
+                "ORMM_T19_140101000000_01041.BSP",
+            ]
+        case "ROB":
+            extra_kernels = ["MEX_ROB_130101_131231_001.BSP"]
+        case _:
+            raise ValueError(f"Invalid option for mex ephemerides")
+
+    # # Choose version of DE ephemerides
+    # match configuration.ephemerides["de_version"]:
+    #     case "DE405":
+    #         print("Using DE405")
+    #         extra_kernels.append("DE405.BSP")
+    #         extra_kernels.append("../pck/DE403-MASSES.TPC")
+    #     case "DE440":
+    #         print("Using DE440")
+    #         extra_kernels.append("DE440.BSP")
+    #         extra_kernels.append("../pck/gm_de440.tpc")
+    #     case _:
+    #         raise ValueError("Invalid kernels")
+
+    # Load standard kernels
+    spice.load_kernel(str(metakernel))
+
+    # Load extra kernels
+    for extra_kernel in extra_kernels:
+        spice.load_kernel(str(ppaths.kerneldir / extra_kernel))
+
+    return None
+
+
 if __name__ == "__main__":
 
-    # Paths
-    metakernel = ppaths.datadir / "metak_mex.tm"
-    ifms_dir = ppaths.psadir
-    output_dir = ppaths.outdir / "prefit-closed-loop"
-    output_dir.mkdir(exist_ok=True)
+    __config_path = str(Parser.parse_args().config_file)
+    config_path = Path(__config_path).resolve()
+    if not config_path.exists():
+        raise FileNotFoundError(f"Not found: {config_path}")
+    config = pio.load_configuration(config_path)
 
-    # Control flags
-    correct_ionosphere: bool = True
-    correct_troposphere: bool = True
-    correct_relativistic: bool = True
+    # Paths
+    metakernel = ppaths.datadir / "metak.tm"
+    ifms_dir = ppaths.psadir
+    output_dir = config_path.parent
+    output_dir.mkdir(exist_ok=True, parents=True)
+
+    # Copy configuration file to output directory
+    dst_config_path = output_dir / config_path.name
+    if config_path.resolve() != dst_config_path.resolve():
+        shutil.copy(config_path, output_dir / config_path.name)
 
     try:
-        spice.load_kernel(str(metakernel))
+
+        # Load spice kernels based on configuration
+        load_spice_kernels(config)
 
         # Load data from IFMS files and group per station
         ifms_paths_per_station = group_ifms_data_per_station(
@@ -512,7 +584,7 @@ if __name__ == "__main__":
         for _station, _station_ifms in ifms_paths_per_station.items():
             data_per_station[_station] = (
                 pobs.load_doppler_observations_from_list_of_ifms_files(
-                    _station_ifms
+                    _station_ifms, config.stations
                 )
             )
 
@@ -522,22 +594,31 @@ if __name__ == "__main__":
             odf_paths, data_per_station
         )
 
+        fig, ax = plt.subplots()
+        nnorcia = data_per_station["NWNORCIA"]
+        nnorcia_epochs = np.array(
+            [xi.to_float() for xi in nnorcia.observation_epochs_et]
+        )
+        ax.plot(nnorcia_epochs, nnorcia.observation_values, ".")
+        plt.show()
+        exit(0)
+
         # Define system of bodies
-        spacecraft_name: str = "MEX"
+        spacecraft_name: str = config.bodies["Spacecraft"]["name"]
         bodies = define_system_of_bodies_from_raw_observations(
-            spacecraft_name,
+            config,
             data_per_station,
         )
 
-        # Update system of bodies with data for light-time corrections
-        bodies, lt_correction_settings_dict = (
-            update_system_of_bodies_for_light_time_corrections(
-                system_of_bodies=bodies,
-                troposphere=correct_troposphere,
-                ionosphere=correct_ionosphere,
-                relativistic=correct_relativistic,
-            )
-        )
+        # # Update system of bodies with data for light-time corrections
+        # bodies, lt_correction_settings_dict = (
+        #     update_system_of_bodies_for_light_time_corrections(
+        #         system_of_bodies=bodies,
+        #         troposphere=correct_troposphere,
+        #         ionosphere=correct_ionosphere,
+        #         relativistic=correct_relativistic,
+        #     )
+        # )
 
         # Process observations for each station
         output_per_station: dict[str, np.ndarray] = {}
@@ -550,17 +631,46 @@ if __name__ == "__main__":
                 bodies=bodies,
                 station=station_name,
                 station_raw_data=contents,
+                configuration=config,
             )
 
             # Define settings for light-time corrections
-            lt_correction_settings = []
-            for key, val in lt_correction_settings_dict.items():
+            lt_correction_settings: list[
+                tomss.light_time_corrections.LightTimeCorrectionSettings
+            ] = []
+            station_config = config.stations[station_name]
 
-                if key == "troposphere" and station_name == "NWNORCIA":
-                    print("Skipping tropo for nwnorcia")
-                    continue
+            # Troposphere
+            if (
+                station_config["troposphere"]
+                and not station_config["tropo_from_file"]
+            ):
 
-                lt_correction_settings.append(val)
+                lt_correction_settings.append(
+                    tomss.light_time_corrections.vmf3_tropospheric_light_time_correction(
+                        body_with_atmosphere_name="Earth",
+                        use_gradient_correction=True,
+                    )
+                )
+
+            # Ionosphere
+            if station_config["ionosphere"]:
+
+                lt_correction_settings.append(
+                    tomss.light_time_corrections.ionex_ionospheric_light_time_correction(
+                        body_with_ionosphere_name="Earth",
+                        ionosphere_height=10.0,  # Irrelevant
+                    )
+                )
+
+            # Relativistic
+            if station_config["relativistic"]:
+
+                lt_correction_settings.append(
+                    tomss.light_time_corrections.first_order_relativistic_light_time_correction(
+                        config.light_time["massive_bodies"]
+                    )
+                )
 
             # Define observation model for station
             link_definitions = observations.get_link_definitions_for_observables(
@@ -590,13 +700,16 @@ if __name__ == "__main__":
             obs_epochs = [
                 eti.to_float() for eti in contents.observation_epochs_et
             ]
+            _concatenated_observations = (
+                observations.get_concatenated_observations()
+            )
             results = np.array(
                 [
                     observations.get_concatenated_observation_times(),
                     observations.get_concatenated_computed_observations(),
-                    observations.get_concatenated_observations(),
-                    obs_epochs,
-                    contents.residuals,
+                    _concatenated_observations,
+                    np.zeros_like(_concatenated_observations),
+                    np.zeros_like(_concatenated_observations),
                     observations.get_concatenated_residuals(),
                 ]
             )

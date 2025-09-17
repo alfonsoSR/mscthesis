@@ -7,6 +7,7 @@ code/residuals
 .vscode
 .DS_Store
 code/closed-loop/*.txt
+doc
 
 # Python
 *cache*
@@ -14,3 +15,8 @@ code/closed-loop/*.txt
 _version.py
 *.npy
 
+
+# Python scripts
+makecalc.py
+makeplots.py
+prueba.py

@@ -2,10 +2,11 @@ from tudatpy import data as tdata
 from pathlib import Path
 from tudatpy.astro import time_representation as ttime
 from tudatpy.estimation import observations_setup as tobss
+from .utils import transform_utc_epochs_to_tdb
 from .io import (
     TwoWayDopplerObservations,
-    transform_utc_epochs_to_tdb,
     sort_ifms_files_by_epoch,
+    get_metadata_from_ifms_filename,
 )
 import numpy as np
 
@@ -268,7 +269,7 @@ def load_odf_data_per_station(
 
 
 def load_doppler_observations_from_list_of_ifms_files(
-    source_files: list[Path],
+    source_files: list[Path], ground_station_config: dict[str, dict[str, bool]]
 ) -> TwoWayDopplerObservations:
 
     # Sort files by epoch
@@ -397,12 +398,21 @@ def load_doppler_observations_from_list_of_ifms_files(
         np.array([0.0, 0.0, 0.0]),
     )
 
+    # Get station name from file metadata
+    _station_id = get_metadata_from_ifms_filename(source_files[0])["station_id"]
+    station_name = identify_station_from_id(int(_station_id))
+
+    # Calculate observation values based on configuration
+    obs_values = np.array(observation_values, dtype=float)
+    if bool(ground_station_config[station_name]["troposphere"]):
+        print(f"Correcting the tropo for {station_name}")
+        obs_values -= np.array(tropo_correction, dtype=float)
+
     return TwoWayDopplerObservations(
         observation_epochs_et=np.array(
             [ttime.Time(float(ti)) for ti in observation_epochs_et]
         ),
-        observation_values=np.array(observation_values, dtype=float)
-        - np.array(tropo_correction, dtype=float),
+        observation_values=obs_values,
         ramping_f0=np.array(ramping_f0, dtype=float)[:-1],
         ramping_df=np.array(ramping_df, dtype=float)[:-1],
         ramping_start_tdb=np.array(ramping_tdb0)[:-1],

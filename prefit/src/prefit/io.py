@@ -1,9 +1,40 @@
 from dataclasses import dataclass
 import numpy as np
-from tudatpy.astro import time_representation as ttime
 from pathlib import Path
-from tudatpy import data as tdata
-from .utils import transform_utc_epochs_to_tdb
+import yaml
+from typing import Any
+
+
+@dataclass
+class PrefitSettings:
+
+    general: dict[str, str]
+    time: dict[str, float]
+    ephemerides: dict[str, str]
+    bodies: dict[str, dict[str, str]]
+    stations: dict[str, dict[str, bool]]
+    light_time: dict[str, list[str]]
+    observations: dict[str, int]
+    plotting: dict[str, Any]
+
+
+def load_configuration(config_file: Path) -> PrefitSettings:
+
+    if not config_file.exists():
+        raise FileNotFoundError(f"Config file {config_file} does not exist")
+
+    content = yaml.safe_load(config_file.open())
+
+    return PrefitSettings(
+        general=content["General"],
+        time=content["Time"],
+        ephemerides=content["Ephemerides"],
+        bodies=content["BodySettings"],
+        stations=content["GroundStationSettings"],
+        light_time=content["LightTimeCorrections"],
+        plotting=content["Plotting"],
+        observations=content["ObservationCollection"],
+    )
 
 
 @dataclass
@@ -43,3 +74,19 @@ def sort_ifms_files_by_epoch(ifms_list: list[Path]) -> list[Path]:
         ]
     )
     return [ifms_list[idx] for idx in mask]
+
+
+class PrefitResults:
+
+    def __init__(self, source_file: Path) -> None:
+
+        content = np.load(source_file)
+
+        self.cepochs: np.ndarray = content[0]
+        self.cobs: np.ndarray = content[1]
+        self.robs: np.ndarray = content[2]
+        self.repochs: np.ndarray = content[3]
+        self.rres: np.ndarray = content[4]
+        self.cres: np.ndarray = content[5]
+
+        return None
