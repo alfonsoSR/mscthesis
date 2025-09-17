@@ -14,8 +14,9 @@ class PrefitSettings:
     bodies: dict[str, dict[str, str]]
     stations: dict[str, dict[str, bool]]
     light_time: dict[str, list[str]]
-    observations: dict[str, int]
-    plotting: dict[str, Any]
+    observations: dict[str, int] | None = None
+    plotting: dict[str, Any] | None = None
+    uplink: dict[str, dict[str, list[str]]] | None = None
 
 
 def load_configuration(config_file: Path) -> PrefitSettings:
@@ -25,6 +26,16 @@ def load_configuration(config_file: Path) -> PrefitSettings:
 
     content = yaml.safe_load(config_file.open())
 
+    observations = (
+        content["ObservationCollection"]
+        if "ObservationCollection" in content
+        else None
+    )
+    plotting = content["Plotting"] if "Plotting" in content else None
+    uplink = (
+        content["FrequencyRamping"] if "FrequencyRamping" in content else None
+    )
+
     return PrefitSettings(
         general=content["General"],
         time=content["Time"],
@@ -32,8 +43,9 @@ def load_configuration(config_file: Path) -> PrefitSettings:
         bodies=content["BodySettings"],
         stations=content["GroundStationSettings"],
         light_time=content["LightTimeCorrections"],
-        plotting=content["Plotting"],
-        observations=content["ObservationCollection"],
+        plotting=plotting,
+        observations=observations,
+        uplink=uplink,
     )
 
 

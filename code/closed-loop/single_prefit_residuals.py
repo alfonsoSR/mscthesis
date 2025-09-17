@@ -40,6 +40,7 @@ if __name__ == "__main__":
 
     config = pio.load_configuration(config_path)
     plot_config = config.plotting
+    assert plot_config is not None
     config_relpath = config_path.relative_to(ppaths.outdir)
 
     # Define paths
@@ -90,8 +91,8 @@ if __name__ == "__main__":
         ylim=(-0.025, 0.025),
         canvas_size=(12, 4),
         legend_location="upper right",
-        save=config.plotting["save"],
-        show=config.plotting["show"],
+        save=plot_config["save"],
+        show=plot_config["show"],
         dir=figdir,
         name=f"{filename_base}-{cvrsn}.png",
     )

@@ -233,7 +233,7 @@ def define_system_of_bodies_from_raw_observations(
             )
         except KeyError:
             print(f"Using approximated position for station: {station_name}")
-            _station_name = f"DSS-{station_name.split('DSS')[-1]}"
+            _station_name = f"DSS{station_name.split('DSS')[-1]}"
             ref_pos_itrf2000 = tenvs.ground_station.get_approximate_dsn_ground_station_positions()[
                 _station_name
             ]
@@ -355,7 +355,7 @@ def define_system_of_bodies_from_raw_observations(
 
     # Add tropospheric data to the ground stations
     vmf3_path = Path().home() / ".pride/data/tropospheric"
-    vmf3_files = [str(xi) for xi in vmf3_path.glob("*.v3gr_r")]
+    vmf3_files = [str(xi) for xi in vmf3_path.glob("2013*.v3gr_r")]
     tomss.light_time_corrections.set_vmf_troposphere_data(
         data_files=vmf3_files,
         file_has_meteo=True,
@@ -484,26 +484,24 @@ def define_observation_collection_for_station(
         reference_link_end=tomss.links.LinkEndType.receiver,
         ancilliary_settings=ancilliary,
     )
-    observations = tobs.ObservationCollection([observation_set])
-
-    if configuration.observations["compress"]:
-        raise NotImplementedError("Still incompatible with compression")
+    original_observations = tobs.ObservationCollection([observation_set])
 
     # print(f"{station}", end="\n-----------------------------\n")
     # print(len(original_observations.get_concatenated_observations()))
 
-    # # Compress observations if requested
-    # if configuration.observations["compress"]:
-    #     observations = (
-    #         tobss.observations_wrapper.create_compressed_doppler_collection(
-    #             original_observation_collection=original_observations,
-    #             compression_ratio=int(
-    #                 configuration.observations["integration_time"]
-    #             ),
-    #         )
-    #     )
-    # else:
-    #     observations = original_observations
+    # Compress observations if requested
+    assert configuration.observations is not None
+    if configuration.observations["compress"]:
+        observations = (
+            tobss.observations_wrapper.create_compressed_doppler_collection(
+                original_observation_collection=original_observations,
+                compression_ratio=int(
+                    configuration.observations["integration_time"]
+                ),
+            )
+        )
+    else:
+        observations = original_observations
 
     # print(len(observations.get_concatenated_observations()))
     # print(f"{station}", end="\n-----------------------------\n")
@@ -584,24 +582,51 @@ if __name__ == "__main__":
         for _station, _station_ifms in ifms_paths_per_station.items():
             data_per_station[_station] = (
                 pobs.load_doppler_observations_from_list_of_ifms_files(
-                    _station_ifms, config.stations
+                    _station_ifms, config
                 )
             )
 
         # Load data from ODF files and group per station
         odf_paths = [file for file in ppaths.psadir.glob("*.DAT")]
         data_per_station = pobs.load_odf_data_per_station(
-            odf_paths, data_per_station
+            odf_paths, config, data_per_station
         )
 
-        fig, ax = plt.subplots()
-        nnorcia = data_per_station["NWNORCIA"]
-        nnorcia_epochs = np.array(
-            [xi.to_float() for xi in nnorcia.observation_epochs_et]
-        )
-        ax.plot(nnorcia_epochs, nnorcia.observation_values, ".")
-        plt.show()
-        exit(0)
+        # fig, axs = plt.subplots(2, 1)
+        # colors = {"NWNORCIA": "blue", "DSS14": "orange", "DSS63": "green"}
+        # for _st, _dt in data_per_station.items():
+
+        #     for idx, fi in enumerate(_dt.ramping_f0):
+        #         axs[0].plot(
+        #             [
+        #                 _dt.ramping_start_tdb[idx].to_float(),
+        #                 _dt.ramping_stop_tdb[idx].to_float(),
+        #             ],
+        #             [
+        #                 fi,
+        #                 fi
+        #                 + _dt.ramping_df[idx]
+        #                 * (
+        #                     -_dt.ramping_start_tdb[idx].to_float()
+        #                     + _dt.ramping_stop_tdb[idx].to_float()
+        #                 ),
+        #             ],
+        #             "-o",
+        #             c=colors[_st],
+        #         )
+
+        #     axs[1].plot(
+        #         [xi.to_float() for xi in _dt.observation_epochs_et],
+        #         _dt.observation_values,
+        #         ".",
+        #         c=colors[_st],
+        #     )
+
+        # xlims = axs[0].get_xlim()
+        # axs[1].set_xlim(xlims)
+
+        # plt.show()
+        # exit(0)
 
         # Define system of bodies
         spacecraft_name: str = config.bodies["Spacecraft"]["name"]
@@ -713,7 +738,12 @@ if __name__ == "__main__":
                     observations.get_concatenated_residuals(),
                 ]
             )
-            np.save(output_dir / f"{station_name}", results)
+            if "DSS-" in station_name:
+                np.save(
+                    output_dir / f"DSS{station_name.split('-')[-1]}", results
+                )
+            else:
+                np.save(output_dir / f"{station_name}", results)
 
             print(f"Saved results for {station_name}")
 
