@@ -1,8 +1,7 @@
 import yaml
 from pathlib import Path
 from dataclasses import dataclass
-import argparse
-from tudatpy.astro import time_representation as ttime
+from astropy import time
 
 
 class PropagationPeriod:
@@ -13,18 +12,21 @@ class PropagationPeriod:
         end: str,
         step: float,
         buffer: float,
+        starting_point: str,
         terminate_exactly: bool,
     ) -> None:
 
-        self.step = ttime.Time(step)
-        _buffer = ttime.Time(buffer)
-        self.start = ttime.DateTime.from_iso_string(
-            start
-        ).to_epoch_time_object()
-        self.start_buffer = self.start - _buffer
-        self.end = ttime.DateTime.from_iso_string(end).to_epoch_time_object()
-        self.end_buffer = self.end + _buffer
+        _buffer = time.TimeDelta(buffer, format="sec", scale="tdb")
+        _start = time.Time(start, scale="tdb")
+        _end = time.Time(end, scale="tdb")
+
+        self.step = step
+        self.start = start
+        self.end = end
+        self.start_buffer = str((_start - _buffer).isot)
+        self.end_buffer = str((_end + _buffer).isot)
         self.terminate_exactly = terminate_exactly
+        self.starting_point = starting_point
 
         return None
 
@@ -78,7 +80,7 @@ class EnvironmentSetup:
         self.global_frame_orientation = global_frame_orientation
         self.central_body = central_body
         self.spacecraft = spacecraft
-        self.interpolation_step = ttime.Time(interpolation_step)
+        self.interpolation_step = interpolation_step
 
         return None
 

@@ -5,7 +5,10 @@
 # I will be propagating between 2013-12-27T00:00:00 and 2014-01-01T00:00:00
 
 
-from tudatpy.astro import frame_conversion as tframe
+from tudatpy.astro import (
+    frame_conversion as tframe,
+    time_representation as ttime,
+)
 from proptools import config as pcon, io as pio
 import argparse
 from pathlib import Path
@@ -44,9 +47,13 @@ def update_environment_with_body_from_config(
             pass
         case "interpolated":
             settings.ephemeris_settings = tenvs.ephemeris.interpolated_spice(
-                initial_time=config.time.start_buffer,
-                final_time=config.time.end_buffer,
-                time_step=config.time.step,
+                initial_time=ttime.DateTime.from_iso_string(
+                    config.time.start_buffer
+                ).to_epoch_time_object(),
+                final_time=ttime.DateTime.from_iso_string(
+                    config.time.end_buffer
+                ).to_epoch_time_object(),
+                time_step=ttime.Time(config.time.step),
                 frame_origin=config.env.global_frame_origin,
                 frame_orientation=config.env.global_frame_orientation,
             )
@@ -167,6 +174,11 @@ def integration_settings_from_config(
     config: pcon.PropSettings,
 ) -> tprops.integrator.IntegratorSettings:
 
+    # Adjust the sign of the step based on starting point for propagation
+    step = ttime.Time(config.time.step)
+    if config.time.starting_point == "end":
+        step = ttime.Time(-config.time.step)
+
     match config.integration.integrator:
 
         # Runge-Kutta fixed-step
@@ -186,7 +198,7 @@ def integration_settings_from_config(
 
             # Define integrator settings
             integrator = tprops.integrator.runge_kutta_fixed_step(
-                time_step=config.time.step,
+                time_step=step,
                 coefficient_set=coefficients,
                 order_to_use=rk_use_order,
             )
@@ -235,6 +247,70 @@ def integration_settings_from_config(
     return integrator
 
 
+def starting_point_and_termination_condition_from_config(
+    config: pcon.PropSettings,
+) -> tuple[ttime.Time, tprops.propagator.PropagationTerminationSettings]:
+
+    # Create time objects for the limits of the propagation interval
+    initial_epoch = ttime.DateTime.from_iso_string(
+        config.time.start
+    ).to_epoch_time_object()
+    final_epoch = ttime.DateTime.from_iso_string(
+        config.time.end
+    ).to_epoch_time_object()
+
+    # Define initial epoch for propagation based on settings
+    match config.time.starting_point:
+        case "start":
+
+            # Define initial epoch
+            propagation_start = initial_epoch
+
+            # Define termination condition
+            termination_condition = tprops.propagator.time_termination(
+                termination_time=final_epoch,
+                terminate_exactly_on_final_condition=config.time.terminate_exactly,
+            )
+
+        case "end":
+
+            # Define initial epoch
+            propagation_start = final_epoch
+
+            # Define termination condition
+            termination_condition = tprops.propagator.time_termination(
+                termination_time=initial_epoch,
+                terminate_exactly_on_final_condition=config.time.terminate_exactly,
+            )
+
+        case "middle":
+
+            # Start of propagation
+            _midpoint = (final_epoch - initial_epoch) / 2
+            propagation_start = initial_epoch + _midpoint
+
+            # Termination condition
+            forward_termination = tprops.propagator.time_termination(
+                termination_time=final_epoch,
+                terminate_exactly_on_final_condition=config.time.terminate_exactly,
+            )
+            backward_termination = tprops.propagator.time_termination(
+                termination_time=initial_epoch,
+                terminate_exactly_on_final_condition=config.time.terminate_exactly,
+            )
+            termination_condition = (
+                tprops.propagator.non_sequential_termination(
+                    forward_termination_settings=forward_termination,
+                    backward_termination_settings=backward_termination,
+                )
+            )
+
+        case _:
+            raise ValueError("Invalid starting point for propagation")
+
+    return propagation_start, termination_condition
+
+
 def propagator_settings_from_config(
     config: pcon.PropSettings,
     system_of_bodies: tenv.SystemOfBodies,
@@ -249,6 +325,11 @@ def propagator_settings_from_config(
         central_bodies=[config.center.name],
     )
 
+    # Define propagation starting point and termination condition
+    propagation_start, termination_condition = (
+        starting_point_and_termination_condition_from_config(config)
+    )
+
     # Get initial state of integrated bodies from spice
     initial_states_per_target = np.array(
         [
@@ -257,16 +338,10 @@ def propagator_settings_from_config(
                 observer_body_name=config.center.name,
                 reference_frame_name=config.env.global_frame_orientation,
                 aberration_corrections="none",
-                ephemeris_time=config.time.start,
+                ephemeris_time=propagation_start,
             )
             for target in acceleration_settings
         ]
-    )
-
-    # Define termination settings
-    termination_settings = tprops.propagator.time_termination(
-        termination_time=config.time.end,
-        terminate_exactly_on_final_condition=config.time.terminate_exactly,
     )
 
     # Get propagator type from configuration
@@ -292,9 +367,9 @@ def propagator_settings_from_config(
         acceleration_model,
         bodies_to_integrate,
         initial_states_per_target[0],
-        config.time.start,
+        propagation_start,
         integrator,
-        termination_settings,
+        termination_condition,
         propagator_type,
         outputvar,
     )
