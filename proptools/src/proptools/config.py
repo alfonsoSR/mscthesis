@@ -14,6 +14,7 @@ class PropagationPeriod:
         buffer: float,
         starting_point: str,
         terminate_exactly: bool,
+        custom_start_epoch: str,
     ) -> None:
 
         _buffer = time.TimeDelta(buffer, format="sec", scale="tdb")
@@ -27,6 +28,7 @@ class PropagationPeriod:
         self.end_buffer = str((_end + _buffer).isot)
         self.terminate_exactly = terminate_exactly
         self.starting_point = starting_point
+        self.custom_start_epoch = custom_start_epoch
 
         return None
 

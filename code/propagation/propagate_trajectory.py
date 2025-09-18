@@ -283,11 +283,16 @@ def starting_point_and_termination_condition_from_config(
                 terminate_exactly_on_final_condition=config.time.terminate_exactly,
             )
 
-        case "middle":
+        case "middle" | "custom":
 
             # Start of propagation
-            _midpoint = (final_epoch - initial_epoch) / 2
-            propagation_start = initial_epoch + _midpoint
+            if config.time.starting_point == "middle":
+                _midpoint = (final_epoch - initial_epoch) / 2
+                propagation_start = initial_epoch + _midpoint
+            else:
+                propagation_start = ttime.DateTime.from_iso_string(
+                    config.time.custom_start_epoch
+                ).to_epoch_time_object()
 
             # Termination condition
             forward_termination = tprops.propagator.time_termination(
