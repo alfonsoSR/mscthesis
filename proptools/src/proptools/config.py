@@ -73,14 +73,12 @@ class EnvironmentSetup:
         self,
         global_frame_origin: str,
         global_frame_orientation: str,
-        central_body: str,
         spacecraft: str,
         interpolation_step: float,
     ) -> None:
 
         self.global_frame_origin = global_frame_origin
         self.global_frame_orientation = global_frame_orientation
-        self.central_body = central_body
         self.spacecraft = spacecraft
         self.interpolation_step = interpolation_step
 
