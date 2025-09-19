@@ -28,15 +28,13 @@ Parser = argparse.ArgumentParser()
 Parser.add_argument("config_file", help="Path to configuration file")
 
 
-def update_environment_with_body_from_config(
-    environment_settings: tenvs.BodyListSettings,
+def __generate_body_settings_from_config(
     name: str,
     config: pcon.PropSettings,
-) -> tenvs.BodyListSettings:
+) -> tenvs.BodySettings:
 
     # Define empty settings for body
-    environment_settings.add_empty_settings(name)
-    settings = environment_settings.get(name)
+    settings = tenvs.BodySettings()
 
     # Get body-specific configuration
     body_config = config.bodies[name]
@@ -88,7 +86,7 @@ def update_environment_with_body_from_config(
         case _:
             raise ValueError(f"Invalid gravity field settings for {name}")
 
-    return environment_settings
+    return settings
 
 
 def system_of_bodies_from_config(
@@ -102,13 +100,15 @@ def system_of_bodies_from_config(
     )
 
     # Define settings for spacecraft
-    environment_settings.add_empty_settings(config.env.spacecraft)
-    sc_settings = environment_settings.get(config.env.spacecraft)
+    sc_settings = tenvs.BodySettings()
+    environment_settings.add_settings(sc_settings, config.env.spacecraft)
 
     # Define settings for massive bodies
     for body in config.bodies:
-        environment_settings = update_environment_with_body_from_config(
-            environment_settings, body, config
+
+        environment_settings.add_settings(
+            settings_to_add=__generate_body_settings_from_config(body, config),
+            body_name=body,
         )
 
     # Create system of bodies
@@ -480,28 +480,6 @@ if __name__ == "__main__":
         # Extract and save output
         output = extract_simulation_output(simulation, config)
         output.save_to_file(config_path.parent / "results.pkl")
-        # exit(0)
-
-        # # Save output
-        # epochs = np.array(list(simulation.state_history.keys()))
-        # np.save("epochs", epochs)
-        # state = np.array(list(simulation.state_history.values()))
-        # np.save("state", state)
-
-        # # Get spacecraft ephemerides at integration epochs
-        # estate = np.array(
-        #     [
-        #         spice.get_body_cartesian_state_at_epoch(
-        #             target_body_name=config.env.spacecraft,
-        #             observer_body_name=config.center.name,
-        #             reference_frame_name=config.env.global_frame_orientation,
-        #             aberration_corrections="NONE",
-        #             ephemeris_time=eti,
-        #         )
-        #         for eti in epochs
-        #     ]
-        # )
-        # np.save("estate", estate)
 
     finally:
         spice.clear_kernels()
