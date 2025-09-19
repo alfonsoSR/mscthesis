@@ -71,9 +71,10 @@ def update_environment_with_body_from_config(
         case "none":
             pass
         case "point_mass":
+            print(f"{body_config.name} - POINT MASS")
             # Define point-mass gravity field from SPICE
             settings.gravity_field_settings = tenvs.gravity_field.central_spice(
-                config.center.name
+                body_config.name
             )
         case "spherical_harmonics":
             # Get path to gravity field models
@@ -166,6 +167,8 @@ def acceleration_settings_from_config(
         # Add target settings to dictionary if not empty
         if len(target_settings.keys()) > 0:
             acceleration_settings[target] = target_settings
+
+    print(acceleration_settings)
 
     return acceleration_settings
 

@@ -96,6 +96,23 @@ class IntegrationSettings:
     rk_order_to_integrate: str
 
 
+@dataclass
+class EphemeridesSettings:
+
+    spacecraft: str
+    planets: str
+    masses: str
+
+
+@dataclass
+class PlotSettings:
+
+    rsw_error: bool
+    orbit: bool
+    show: bool
+    save: bool
+
+
 class PropSettings:
 
     def __init__(self, config_file: Path) -> None:
@@ -132,5 +149,8 @@ class PropSettings:
 
         # Propagator settings
         self.integration = IntegrationSettings(**config["IntegrationSettings"])
+
+        # Plotting settings
+        self.plots = PlotSettings(**config["Plotting"])
 
         return None

@@ -1,6 +1,6 @@
 from nastro import graphics as ng, types as nt
 import numpy as np
-from proptools import io as pio, plots as pplots
+from proptools import config as pconfig, io as pio
 from pathlib import Path
 import argparse
 from astropy import time
@@ -27,16 +27,20 @@ if __name__ == "__main__":
     config_path = Path(parser.parse_args().config_file).resolve()
     if not config_path.exists():
         raise FileNotFoundError(f"Configuration file not found: {config_path}")
-    config = pplots.PlotSettings(config_path)
+    config = pconfig.PropSettings(config_path)
 
     # Load results from file
     results = pio.PropagationOutput.from_file(
         config_path.parent / "results.pkl"
     )
 
+    # Cartesian states in Mars-centered J2000
+    cstate_j2000 = nt.CartesianState[nt.Double](*results.cstate_j2000.T)
+    rstate_j2000 = nt.CartesianState[nt.Double](*results.rstate_j2000.T)
+
     # Position difference in RSW
-    cstate_rsw = nt.CartesianState[nt.Double](*results.cstate_j2000.T)
-    rstate_rsw = nt.CartesianState[nt.Double](*results.rstate_j2000.T)
+    cstate_rsw = nt.CartesianState[nt.Double](*results.cstate_rsw.T)
+    rstate_rsw = nt.CartesianState[nt.Double](*results.rstate_rsw.T)
     diff = cstate_rsw - rstate_rsw
 
     # ISO string representation of the initial epoch
@@ -46,18 +50,28 @@ if __name__ == "__main__":
     )
     isot_t0: str = initial_epoch.isot  # type: ignore
 
-    # Figure setup
-    filename_base = "rsw-comparison"
-    version = get_plot_version(filename_base, config_path.parent)
-    canvas_setup = ng.PlotSetup(
-        canvas_size=(12, 7),
-        canvas_title=f"Difference in RSW state: Propagated vs {config.ephemerides} ephemerides",
-        show=config.show,
-        save=config.save,
-        dir=config_path.parent,
-        name=f"rsw-comparison-{version}.png",
-        xlabel=f"Days past {isot_t0} [TDB]",
-    )
-    with ng.CompareRswStates(canvas_setup) as fig:
+    # Figure setup: RSW error
+    if config.plots.rsw_error:
 
-        fig.compare_states(results.epochs, cstate_rsw, rstate_rsw)
+        filename_base = "rsw-comparison"
+        version = get_plot_version(filename_base, config_path.parent)
+        canvas_setup = ng.PlotSetup(
+            canvas_size=(12, 7),
+            canvas_title=f"Difference in RSW state: Propagated vs ephemerides",
+            show=config.plots.show,
+            save=config.plots.save,
+            dir=config_path.parent,
+            name=f"rsw-comparison-{version}.png",
+            xlabel=f"Days past {isot_t0} [TDB]",
+        )
+        with ng.CompareRswStates(canvas_setup) as fig:
+
+            fig.compare_states(results.epochs, cstate_rsw, rstate_rsw)
+
+    # 3D orbit
+    if config.plots.orbit:
+
+        with ng.PlotOrbit() as fig:
+
+            fig.add_orbit(cstate_j2000, label="Current")
+            fig.add_orbit(rstate_j2000, label="Reference")
