@@ -69,8 +69,6 @@ def __generate_body_settings_from_config(
         case "none":
             pass
         case "point_mass":
-            print(f"{body_config.name} - POINT MASS")
-            # Define point-mass gravity field from SPICE
             settings.gravity_field_settings = tenvs.gravity_field.central_spice(
                 body_config.name
             )
@@ -167,8 +165,6 @@ def acceleration_settings_from_config(
         # Add target settings to dictionary if not empty
         if len(target_settings.keys()) > 0:
             acceleration_settings[target] = target_settings
-
-    print(acceleration_settings)
 
     return acceleration_settings
 
@@ -364,34 +360,17 @@ def propagator_settings_from_config(
     # Define intergration settings from configuration
     integrator = integration_settings_from_config(config)
 
-    # output
-    outputvar = [tprops.dependent_variable.keplerian_state("MEX", "Mars")]
-
-    # Translational propagation settings
-    central_bodies = [config.center.name]
-    bodies_to_integrate = list(acceleration_settings.keys())
+    # Define settings for translational propagator
     translational_settings = tprops.propagator.translational(
-        central_bodies,
-        acceleration_model,
-        bodies_to_integrate,
-        initial_states_per_target[0],
-        propagation_start,
-        integrator,
-        termination_condition,
-        propagator_type,
-        outputvar,
+        central_bodies=[config.center.name],
+        acceleration_models=acceleration_model,
+        bodies_to_integrate=list(acceleration_settings.keys()),
+        initial_states=initial_states_per_target[0],
+        initial_time=propagation_start,
+        integrator_settings=integrator,
+        termination_settings=termination_condition,
+        propagator=propagator_type,
     )
-    # translational_settings = tprops.propagator.translational(
-    #     central_bodies=central_bodies,
-    #     acceleration_models=acceleration_settings,
-    #     bodies_to_integrate=bodies_to_integrate,
-    #     initial_states=initial_states_per_target[0],
-    #     initial_time=config.time.start,
-    #     integrator_settings=integrator,
-    #     termination_settings=termination_settings,
-    #     propagator=propagator_type,
-    #     output_variables=outputvar,
-    # )
 
     return translational_settings
 
