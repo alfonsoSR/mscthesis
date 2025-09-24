@@ -360,19 +360,29 @@ def propagator_settings_from_config(
     # Define intergration settings from configuration
     integrator = integration_settings_from_config(config)
 
-    # Define settings for translational propagator
-    translational_settings = tprops.propagator.translational(
+    return tprops.propagator.TranslationalStatePropagatorSettings(
         central_bodies=[config.center.name],
         acceleration_models=acceleration_model,
-        bodies_to_integrate=list(acceleration_settings.keys()),
-        initial_states=initial_states_per_target[0],
+        bodies_to_propagate=list(acceleration_settings.keys()),
+        initial_body_states=initial_states_per_target[0],
         initial_time=propagation_start,
         integrator_settings=integrator,
         termination_settings=termination_condition,
-        propagator=propagator_type,
     )
 
-    return translational_settings
+    # # # Define settings for translational propagator
+    # # translational_settings = tprops.propagator.translational(
+    # #     central_bodies=[config.center.name],
+    # #     acceleration_models=acceleration_model,
+    # #     bodies_to_integrate=list(acceleration_settings.keys()),
+    # #     initial_states=initial_states_per_target[0],
+    # #     initial_time=propagation_start,
+    # #     integrator_settings=integrator,
+    # #     termination_settings=termination_condition,
+    # #     propagator=propagator_type,
+    # # )
+
+    # return translational_settings
 
 
 def extract_simulation_output(
