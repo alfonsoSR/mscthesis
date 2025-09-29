@@ -36,13 +36,23 @@ class PropagationPeriod:
 class BodySetup:
 
     def __init__(
-        self, name: str, center: bool, gravity_field: str, ephemerides: str
+        self,
+        name: str,
+        center: bool,
+        fixed_frame: str,
+        gravity_field: str,
+        ephemerides: str,
+        rotation: str,
+        shape: str,
     ) -> None:
 
         self.name = name
+        self.fixed_frame = fixed_frame
         self.is_center = center
         self.gravity_field = gravity_field
         self.ephemerides = ephemerides
+        self.rotation = rotation
+        self.shape = shape
 
         return None
 
@@ -56,12 +66,24 @@ class GravityFieldAccelerationSettings:
     sh_degree: int
 
 
+@dataclass
+class RelativisticAccelerationSettings:
+
+    use: bool
+    karl: bool
+    lense: bool
+
+
 class AccelerationSettings:
 
     def __init__(self, settings_per_type: dict[str, dict]) -> None:
 
         self.gravity = GravityFieldAccelerationSettings(
             **settings_per_type["gravity_field"]
+        )
+
+        self.relativity = RelativisticAccelerationSettings(
+            **settings_per_type["relativity"]
         )
 
         return None
@@ -92,6 +114,11 @@ class IntegrationSettings:
     integrator: str
     rk_coefficients: str
     rk_order_to_integrate: str
+    step_size: float
+    rtol: float
+    atols: list[float]
+    min_step: float
+    max_step: float
 
 
 @dataclass
@@ -103,12 +130,22 @@ class EphemeridesSettings:
 
 
 @dataclass
+class DependentVariableSettings:
+
+    variables: dict[str, bool]
+
+
+@dataclass
 class PlotSettings:
 
     rsw_error: bool
+    keplerian_elements: bool
+    keplerian_difference: bool
+    dependent_variables: list[str]
     orbit: bool
     show: bool
     save: bool
+    cartesian_elements: bool = False
 
 
 class PropSettings:
@@ -144,6 +181,11 @@ class PropSettings:
             }
             for target, tconfig in config["AccelerationSettings"].items()
         }
+
+        # Dependent variable settings
+        self.variables = DependentVariableSettings(
+            variables=config["DependentVariables"]
+        )
 
         # Propagator settings
         self.integration = IntegrationSettings(**config["IntegrationSettings"])

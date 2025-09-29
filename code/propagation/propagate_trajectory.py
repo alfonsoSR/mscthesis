@@ -9,6 +9,7 @@ from tudatpy.astro import (
     frame_conversion as tframe,
     time_representation as ttime,
 )
+from tudatpy.math import root_finders as troot
 from proptools import config as pcon, io as pio
 import argparse
 from pathlib import Path
@@ -22,7 +23,6 @@ from tudatpy.dynamics import (
 from tudatpy import data as tdata
 from tudatpy.interface import spice
 import numpy as np
-import pickle
 
 Parser = argparse.ArgumentParser()
 Parser.add_argument("config_file", help="Path to configuration file")
@@ -64,6 +64,43 @@ def __generate_body_settings_from_config(
         case _:
             raise NotImplementedError(f"Invalid body ephemerides: {name}")
 
+    # Orientation settings
+    match body_config.rotation:
+
+        case "none":
+            pass
+        case "spice":
+            settings.rotation_model_settings = tenvs.rotation_model.spice(
+                base_frame=config.env.global_frame_orientation,
+                target_frame=f"iau_{name}".upper(),
+            )
+        case "precise":
+
+            # Precise rotation model only available for Mars
+            if name != "Mars":
+                raise ValueError(
+                    f"Precise rotation model not available for {name}"
+                )
+
+            settings.rotation_model_settings = (
+                tenvs.rotation_model.mars_high_accuracy(
+                    base_frame=config.env.global_frame_orientation
+                )
+            )
+
+        case _:
+            raise NotImplementedError(f"Invalid rotation model: {name}")
+
+    # Shape settings
+    match body_config.shape:
+
+        case "none":
+            pass
+        case "spherical_spice":
+            settings.shape_settings = tenvs.shape.spherical_spice()
+        case _:
+            raise ValueError(f"Invalid shape model: {name}")
+
     # Gravity field settings
     match body_config.gravity_field:
         case "none":
@@ -73,14 +110,31 @@ def __generate_body_settings_from_config(
                 body_config.name
             )
         case "spherical_harmonics":
-            # Get path to gravity field models
+
+            # Load additional config from acceleration settings
+            gravity_settings = config.accelerations[config.env.spacecraft][
+                name
+            ].gravity
+            if gravity_settings.sh_model == "none":
+                raise ValueError(
+                    f"Requested spherical harmonics gravity field for {name}"
+                    " with missing sh_model"
+                )
+
+            # Get path to directory with gravity field models
             gravity_path = Path(tdata.get_gravity_models_path()).resolve()
-            gravity_path /= name
+            gravity_path /= f"{name}/{gravity_settings.sh_model}"
             if not gravity_path.exists():
                 raise ValueError(f"Gravity data not found in {gravity_path}")
 
-            # Missing implementation
-            raise NotImplementedError("SH Gravity field settings")
+            settings.gravity_field_settings = (
+                tenvs.gravity_field.from_file_spherical_harmonic(
+                    file=str(gravity_path),
+                    maximum_degree=gravity_settings.sh_degree,
+                    maximum_order=gravity_settings.sh_order,
+                )
+            )
+
         case _:
             raise ValueError(f"Invalid gravity field settings for {name}")
 
@@ -158,6 +212,16 @@ def acceleration_settings_from_config(
                             f"Requested gravity of {body} with invalid settings"
                         )
 
+            # Relativistic correction
+            if btconfig.relativity.use:
+
+                bsettings.append(
+                    tprops.acceleration.relativistic_correction(
+                        use_schwarzschild=btconfig.relativity.karl,
+                        use_lense_thirring=btconfig.relativity.lense,
+                    )
+                )
+
             # Add settings to dictionary if not empty
             if len(bsettings) > 0:
                 target_settings[body] = bsettings
@@ -174,9 +238,9 @@ def integration_settings_from_config(
 ) -> tprops.integrator.IntegratorSettings:
 
     # Adjust the sign of the step based on starting point for propagation
-    step = ttime.Time(config.time.step)
+    step = ttime.Time(config.integration.step_size)
     if config.time.starting_point == "end":
-        step = ttime.Time(-config.time.step)
+        step = ttime.Time(-config.integration.step_size)
 
     match config.integration.integrator:
 
@@ -202,10 +266,9 @@ def integration_settings_from_config(
                 order_to_use=rk_use_order,
             )
 
-        # Any other option not implemented yet
-        case _:
+        # Runge-Kutta variable step
+        case "rk_variable":
 
-            raise NotImplementedError(f"Integrator not implemented")
             # Get coefficient set from configuration
             coefficients = getattr(
                 tprops.integrator.CoefficientSets,
@@ -213,14 +276,36 @@ def integration_settings_from_config(
             )
 
             # Step-size control settings
+            rtols = np.ones(6, dtype=float) * config.integration.rtol
+            atols = np.array(config.integration.atols, dtype=float)
+
+            step_control = tprops.integrator.step_size_control_elementwise_matrix_tolerance(
+                relative_error_tolerance=rtols,
+                absolute_error_tolerance=atols,
+                safety_factor=0.8,
+                minimum_factor_increase=0.1,
+                maximum_factor_increase=4,
+            )
+
+            # Step-size validation settings
+            step_validation = tprops.integrator.step_size_validation(
+                minimum_step=ttime.Time(config.integration.min_step),
+                maximum_step=ttime.Time(config.integration.max_step),
+            )
 
             # Define integrator settings
             integrator = tprops.integrator.runge_kutta_variable_step(
-                initial_time_step=config.time.step,
+                initial_time_step=step,
                 coefficient_set=coefficients,
-                step_size_control_settings=NotImplemented,
-                step_size_validation_settings=NotImplemented,
+                step_size_control_settings=step_control,
+                step_size_validation_settings=step_validation,
+                assess_termination_on_minor_steps=False,
             )
+
+        # Any other option not implemented yet
+        case _:
+
+            raise NotImplementedError(f"Integrator not implemented")
 
     # # Define integrator type
     # match config.integration.integrator:
@@ -315,6 +400,41 @@ def starting_point_and_termination_condition_from_config(
     return propagation_start, termination_condition
 
 
+def dependent_variable_settings_from_config(
+    config: pcon.PropSettings,
+) -> list[tprops.dependent_variable.SingleDependentVariableSaveSettings]:
+
+    dependent_variables: list[
+        tprops.dependent_variable.SingleDependentVariableSaveSettings
+    ] = []
+
+    for variable, use in config.variables.variables.items():
+
+        if not use:
+            continue
+
+        if "_altitude" in variable:
+            dependent_variables.append(
+                tprops.dependent_variable.altitude(
+                    body=config.env.spacecraft,
+                    central_body=variable.split("_")[0],
+                )
+            )
+
+        elif "_distance" in variable:
+            body, target, _ = variable.split("_")
+            dependent_variables.append(
+                tprops.dependent_variable.relative_distance(
+                    body=target, relative_body=body
+                )
+            )
+
+        else:
+            raise ValueError(f"Invalid dependent variable: {variable}")
+
+    return dependent_variables
+
+
 def propagator_settings_from_config(
     config: pcon.PropSettings,
     system_of_bodies: tenv.SystemOfBodies,
@@ -348,14 +468,26 @@ def propagator_settings_from_config(
         ]
     )
 
-    # Get propagator type from configuration
-    match config.integration.propagator:
-        case "cowell":
-            propagator_type = (
-                tprops.propagator.TranslationalPropagatorType.cowell
-            )
-        case _:
-            raise ValueError("Invalid propagator type")
+    # Check if propagator type is valid
+    if not hasattr(
+        tprops.propagator.TranslationalPropagatorType,
+        config.integration.propagator,
+    ):
+        raise ValueError(
+            f"Invalid propagator type: {config.integration.propagator}"
+        )
+
+    # Dependent variable settings
+    dependent_variables = dependent_variable_settings_from_config(config)
+
+    # # Get propagator type from configuration
+    # match config.integration.propagator:
+    #     case "cowell":
+    #         propagator_type = (
+    #             tprops.propagator.TranslationalPropagatorType.cowell
+    #         )
+    #     case _:
+    #         raise ValueError("Invalid propagator type")
 
     # Define intergration settings from configuration
     integrator = integration_settings_from_config(config)
@@ -368,6 +500,11 @@ def propagator_settings_from_config(
         initial_time=propagation_start,
         integrator_settings=integrator,
         termination_settings=termination_condition,
+        propagator=getattr(
+            tprops.propagator.TranslationalPropagatorType,
+            config.integration.propagator,
+        ),
+        dependent_variable_settings=dependent_variables,
     )
 
     # # # Define settings for translational propagator
@@ -429,6 +566,20 @@ def extract_simulation_output(
         _pvel_rsw = rotation_matrix @ propagated_state_j2000[idx][3:]
         propagated_state_rsw[idx] = np.array([_ppos_rsw, _pvel_rsw]).flatten()
 
+    # Dependent variables
+    dependent_variable_values = np.array(
+        [x for x in simulation.dependent_variable_history.values()]
+    ).T
+    if len(dependent_variable_values.shape) == 1:
+        dependent_variable_values = dependent_variable_values[None, :]
+
+    dependent_variables: dict[str, np.ndarray] = {}
+    cidx: int = 0
+    for name, use in config.variables.variables.items():
+        if use:
+            dependent_variables[name] = dependent_variable_values[cidx]
+            cidx += 1
+
     # Save output
     return pio.PropagationOutput(
         epochs=propagation_epochs,
@@ -436,6 +587,9 @@ def extract_simulation_output(
         rstate_j2000=reference_state_j2000,
         cstate_rsw=propagated_state_rsw,
         rstate_rsw=reference_state_rsw,
+        dvars=dependent_variables,
+        number_of_function_evaluations=simulation.total_number_of_function_evaluations,
+        ustate=np.array(list(simulation.unprocessed_state_history.values())).T,
     )
 
 
@@ -459,11 +613,13 @@ if __name__ == "__main__":
         propagator = propagator_settings_from_config(config, bodies)
 
         # Propagate equations of motion
-        simulation = tsim.create_dynamics_simulator(
+        simulator = tsim.create_dynamics_simulator(
             bodies=bodies,
             propagator_settings=propagator,
             simulate_dynamics_on_creation=True,
-        ).propagation_results
+        )
+        assert isinstance(simulator, tsim.SingleArcSimulator)
+        simulation = simulator.propagation_results
         assert isinstance(simulation, tprop.SingleArcSimulationResults)
 
         # Extract and save output

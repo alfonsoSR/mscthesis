@@ -4,6 +4,7 @@ from proptools import config as pconfig, io as pio
 from pathlib import Path
 import argparse
 from astropy import time
+from nastro import catalog as nc
 
 parser = argparse.ArgumentParser()
 parser.add_argument("config_file", help="Path to configuration file")
@@ -75,3 +76,90 @@ if __name__ == "__main__":
 
             fig.add_orbit(cstate_j2000, label="Current")
             fig.add_orbit(rstate_j2000, label="Reference")
+
+    # Difference between keplerian elements
+    if config.plots.keplerian_difference:
+
+        # Transform cartesian states to keplerian
+        kcstate_j2000 = cstate_j2000.to_keplerian(nc.Mars.mu)
+        krstate_j2000 = rstate_j2000.to_keplerian(nc.Mars.mu)
+
+        # Define common settings for plots
+        kcomp_filebase = "keplerian-comparison"
+        kcomp_version = get_plot_version(kcomp_filebase, config_path.parent)
+        keplerian_settings = ng.PlotSetup(
+            canvas_title="Difference in keplerian elements: Propagated vs Ephemerides",
+            canvas_size=(12, 7),
+            show=config.plots.show,
+            save=config.plots.save,
+            dir=config_path.parent,
+            name=f"{kcomp_filebase}-{kcomp_version}.png",
+            xlabel=f"Days past {isot_t0} [TDB]",
+        )
+
+        with ng.CompareKeplerianStates(keplerian_settings) as fig:
+            fig.compare_states(results.epochs, kcstate_j2000, krstate_j2000)
+
+    # Keplerian elements side to side
+    if config.plots.keplerian_elements:
+
+        # Transform cartesian states to keplerian
+        kcstate_j2000 = cstate_j2000.to_keplerian(nc.Mars.mu)
+        krstate_j2000 = rstate_j2000.to_keplerian(nc.Mars.mu)
+
+        # Define common settings for plots
+        kcomp_filebase = "keplerian-elements"
+        kcomp_version = get_plot_version(kcomp_filebase, config_path.parent)
+        keplerian_settings = ng.PlotSetup(
+            canvas_title="Comparison of keplerian elements: Propagated vs Ephemerides",
+            canvas_size=(12, 7),
+            show=config.plots.show,
+            save=config.plots.save,
+            dir=config_path.parent,
+            name=f"{kcomp_filebase}-{kcomp_version}.png",
+            xlabel=f"Days past {isot_t0} [TDB]",
+        )
+
+        with ng.PlotKeplerianState(keplerian_settings) as fig:
+            fig.add_state(results.epochs, kcstate_j2000)
+            fig.add_state(results.epochs, krstate_j2000)
+
+    # Cartesian elements side to side
+    if config.plots.cartesian_elements:
+
+        filebase = "cartesian-elements"
+        version = get_plot_version(filebase, config_path.parent)
+        cartesian_settings = ng.PlotSetup(
+            canvas_title="Comparison of cartesian state: Propagated vs Ephemerides",
+            canvas_size=(12, 7),
+            show=config.plots.show,
+            save=config.plots.save,
+            dir=config_path.parent,
+            name=f"{filebase}-{version}.png",
+            xlabel=f"Days past {isot_t0} [TDB]",
+        )
+        with ng.PlotCartesianState(cartesian_settings) as fig:
+            fig.add_state(results.epochs, cstate_j2000)
+            fig.add_state(results.epochs, rstate_j2000)
+
+    # Altitude over the surface of Mars
+    if config.plots.dependent_variables:
+
+        for dvar, values in results.dvars.items():
+
+            # Get version of plot
+            filebase = dvar
+            version = get_plot_version(filebase, config_path.parent)
+
+            # Plot settings
+            altitude_settings = ng.PlotSetup(
+                canvas_title=f"Dependent variable: {dvar}",
+                canvas_size=(12, 7),
+                show=config.plots.show,
+                save=config.plots.save,
+                dir=config_path.parent,
+                name=f"{filebase}-{version}.png",
+                xlabel=f"Days past {isot_t0} [TDB]",
+            )
+            with ng.SingleAxis(altitude_settings) as fig:
+                fig.line((results.epochs - results.epochs[0]) / 86400.0, values)
