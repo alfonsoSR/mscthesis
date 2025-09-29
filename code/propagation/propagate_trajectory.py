@@ -9,7 +9,6 @@ from tudatpy.astro import (
     frame_conversion as tframe,
     time_representation as ttime,
 )
-from tudatpy.math import root_finders as troot
 from proptools import config as pcon, io as pio
 import argparse
 from pathlib import Path
