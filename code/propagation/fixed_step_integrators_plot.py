@@ -24,7 +24,9 @@ if __name__ == "__main__":
 
     # Define list of configuration files from which to extract data
     base_dir: Path = (
-        ppaths.outdir / "propagation-cl/integrator/benchmark_fixed" / integrator
+        ppaths.outdir
+        / "propagation-cl/integrator/benchmark_closest_fixed"
+        / integrator
     )
     config_files: dict[float, Path] = {
         float(file.parent.name.replace("_", ".")): file
@@ -70,6 +72,7 @@ if __name__ == "__main__":
         xscale="log",
         xlabel="Step size",
         legend_title=r"$\Delta t$ [s]",
+        ylim=None,
     )
     max_xerr_setup = max_err_setup.version(
         ylabel=r"max$(|| \mathbf{r}(t; \Delta t) - \mathbf{r}(t; \Delta t/2) ||)$ [m]",
@@ -130,20 +133,35 @@ if __name__ == "__main__":
             xerr.line(dt, cerror.r_mag)
             verr.line(dt, cerror.v_mag)
 
-            # Update lists with max_err data
-            max_xerr_list.append(max(cerror.r_mag))
-            max_verr_list.append(max(cerror.v_mag))
+            # Plot max position and velocity errors
+            err_mask = np.isfinite(cerror.r_mag)
+            xerr_max.line(
+                step,
+                np.max(cerror.r_mag[err_mask]),
+                fmt="o",
+                label=f"{step:.2f}",
+            )
+            verr_max.line(
+                step,
+                np.max(cerror.v_mag[err_mask]),
+                fmt="o",
+                label=f"{step:.2f}",
+            )
 
-        # Initialize max_err subplots with grey line connecting dots
-        xerr_max.line(step_list[1:], max_xerr_list, color="grey", alpha=0.4)
-        verr_max.line(step_list[1:], max_verr_list, color="grey", alpha=0.4)
+            # # Update lists with max_err data
+            # max_xerr_list.append(max(cerror.r_mag))
+            # max_verr_list.append(max(cerror.v_mag))
 
-        # Add data to max_err subplots
-        for stepi, xmaxi, vmaxi in zip(
-            step_list[1:], max_xerr_list, max_verr_list
-        ):
-            xerr_max.line(stepi, xmaxi, fmt="o", label=f"{stepi:.2f}")
-            verr_max.line(stepi, vmaxi, fmt="o", label=f"{stepi:.2f}")
+        # # Initialize max_err subplots with grey line connecting dots
+        # xerr_max.line(step_list[1:], max_xerr_list, color="grey", alpha=0.4)
+        # verr_max.line(step_list[1:], max_verr_list, color="grey", alpha=0.4)
+
+        # # Add data to max_err subplots
+        # for stepi, xmaxi, vmaxi in zip(
+        #     step_list[1:], max_xerr_list, max_verr_list
+        # ):
+        #     xerr_max.line(stepi, xmaxi, fmt="o", label=f"{stepi:.2f}")
+        #     verr_max.line(stepi, vmaxi, fmt="o", label=f"{stepi:.2f}")
 
         # Post-process subplots
         xerr.__exit__(0, 0, 0)
