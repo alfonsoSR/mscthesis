@@ -1,0 +1,45 @@
+from ..core import SetupBase, SetupCollectionBase
+from dataclasses import dataclass
+from tudatpy.astro import time_representation as ttime
+
+
+class PlanetEphemeridesSetup(SetupBase):
+
+    model: str = NotImplemented
+    ephemeris_frame_origin: str = NotImplemented
+    ephemeris_frame_orientation: str = NotImplemented
+    interpolation_step: ttime.Time = NotImplemented
+    interpolation_buffer: ttime.Time = NotImplemented
+
+
+class PlanetRotationSetup(SetupBase):
+
+    model: str = NotImplemented
+    base_frame: str = NotImplemented
+    target_frame: str | None = NotImplemented
+
+
+class PlanetShapeSetup(SetupBase):
+
+    model: str = NotImplemented
+    equatorial_radius: float = NotImplemented
+    flattening_factor: float = NotImplemented
+
+
+class PlanetGravitySetup(SetupBase):
+
+    model: str = NotImplemented
+    spherical_harmonics_file: str | None = NotImplemented
+    spherical_harmonics_degree: int | None = NotImplemented
+    spherical_harmonics_order: int | None = NotImplemented
+    spherical_harmonics_frame: str | None = NotImplemented
+
+
+@dataclass
+class PlanetSetup(SetupCollectionBase):
+
+    present: bool
+    ephemerides: PlanetEphemeridesSetup
+    rotation: PlanetRotationSetup
+    shape: PlanetShapeSetup
+    gravity: PlanetGravitySetup
