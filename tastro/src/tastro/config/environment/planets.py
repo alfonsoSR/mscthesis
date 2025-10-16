@@ -35,6 +35,19 @@ class PlanetGravitySetup(SetupBase):
     spherical_harmonics_frame: str | None = NotImplemented
 
 
+class DirectRadiationSourceSetup(SetupBase):
+
+    luminosity: float = NotImplemented
+
+
+@dataclass
+class PlanetRadiationSourceSetup(SetupCollectionBase):
+
+    present: bool
+    model: str
+    direct_setup: DirectRadiationSourceSetup
+
+
 @dataclass
 class PlanetSetup(SetupCollectionBase):
 
@@ -43,3 +56,4 @@ class PlanetSetup(SetupCollectionBase):
     rotation: PlanetRotationSetup
     shape: PlanetShapeSetup
     gravity: PlanetGravitySetup
+    radiation: PlanetRadiationSourceSetup

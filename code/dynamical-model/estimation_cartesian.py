@@ -46,7 +46,6 @@ if __name__ == "__main__":
                 propagator_settings=propagator,
                 simulate_dynamics_on_creation=True,
             )
-
             # Save simulation output to file
             assert isinstance(dynamics_simulator, tsim.SingleArcSimulator)
             simulation_results = dynamics_simulator.propagation_results

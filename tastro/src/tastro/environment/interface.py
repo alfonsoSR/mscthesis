@@ -46,6 +46,12 @@ def system_of_bodies_from_config(config: "CaseSetup") -> "tenv.SystemOfBodies":
                 generator.rotation_settings()
             )
 
+        # Shape settings
+        if spacecraft_setup.shape.present:
+            spacecraft_settings.vehicle_shape_settings = (
+                generator.shape_settings()
+            )
+
         # Radiation target settings
         if spacecraft_setup.radiation.present:
             spacecraft_settings.radiation_pressure_target_settings = (
@@ -87,6 +93,12 @@ def system_of_bodies_from_config(config: "CaseSetup") -> "tenv.SystemOfBodies":
                 generator.gravity_settings()
             )
 
+        # Radiation source settings
+        if planet_setup.radiation.present:
+            planet_settings.radiation_source_settings = (
+                generator.radiation_source_settings()
+            )
+
     # Define settings for ground stations
     if "Earth" in config.environment.planets and config.estimation.present:
 
@@ -115,6 +127,14 @@ def system_of_bodies_from_config(config: "CaseSetup") -> "tenv.SystemOfBodies":
     # Create system of bodies
     log.info("Creating system of bodies")
     bodies = tenvs.create_system_of_bodies(environment_settings)
+
+    # Update vehicles with mass if defined
+    for vehicle, vehicle_setup in config.environment.vehicles.items():
+        if vehicle_setup.systems.mass is not None:
+            log.debug(
+                f"Setting mass of {vehicle} to {vehicle_setup.systems.mass}"
+            )
+            bodies.get(vehicle).mass = vehicle_setup.systems.mass
 
     # If estimation is present, update system of bodies
     if config.estimation.present:

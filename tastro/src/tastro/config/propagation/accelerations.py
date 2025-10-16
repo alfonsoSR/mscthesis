@@ -11,7 +11,8 @@ class AccelerationAerodynamicSetup(SetupBase):
 
 
 class AccelerationRadiationSetup(SetupBase):
-    pass
+
+    occulting_bodies: list[str] | None = NotImplemented
 
 
 class AccelerationRelativisticSetup(SetupBase):

@@ -55,3 +55,9 @@ class ExternalAccelerationSettingsGenerator:
             use_lense_thirring=self.acceleration.relativistic.use_lense,
             use_de_sitter=False,
         )
+
+    def radiation_pressure_settings(self) -> tacs.AccelerationSettings:
+
+        log.debug(f"Radiation pressure: {self.source} on {self.vehicle}")
+
+        return tacs.radiation_pressure()

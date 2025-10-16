@@ -87,7 +87,7 @@ def update_system_of_bodies(
                 raise NotImplementedError("Only MEX supported")
 
             # Set turnaround ratio
-            match vehicle_setup.doppler.turnaround_ratio:
+            match vehicle_setup.systems.turnaround_ratio:
 
                 case "default":
                     log.debug("Default turnaround ratios")
@@ -98,7 +98,7 @@ def update_system_of_bodies(
                     raise NotImplementedError("Invalid turnaround ratio setup")
 
             # Set reference point for tracking
-            match vehicle_setup.doppler.reference_point:
+            match vehicle_setup.systems.reference_point:
 
                 case "origin":
                     log.debug("Reference point is origin")

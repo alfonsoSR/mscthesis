@@ -33,10 +33,16 @@ class VehicleRadiationTargetSetup(SetupCollectionBase):
     cannonball_settings: CannonballRadiationTargetSetup
 
 
-class VehicleDopplerTrackingSetup(SetupBase):
+class VehicleSystemsSetup(SetupBase):
 
     turnaround_ratio: str = NotImplemented
     reference_point: str = NotImplemented
+    mass: float | None = NotImplemented
+
+
+class VehicleShapeSetup(SetupBase):
+
+    model: str = NotImplemented
 
 
 @dataclass
@@ -46,5 +52,6 @@ class VehicleSetup(SetupCollectionBase):
     ephemerides: VehicleEphemerisSetup
     rotation: VehicleRotationSetup
     radiation: VehicleRadiationTargetSetup
-    doppler: VehicleDopplerTrackingSetup
+    systems: VehicleSystemsSetup
+    shape: VehicleShapeSetup
     # reference_point: VehicleReferencePointSetup

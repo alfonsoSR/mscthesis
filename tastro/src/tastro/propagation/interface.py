@@ -60,7 +60,7 @@ def translational_propagator_settings_from_config(
     )
 
     # Return propagator settings
-    return tprops.translational(
+    propagator_settings = tprops.translational(
         central_bodies=central_bodies,
         acceleration_models=acceleration_model,
         bodies_to_integrate=bodies_to_propagate,
@@ -70,3 +70,15 @@ def translational_propagator_settings_from_config(
         termination_settings=termination_condition,
         propagator=config.propagation.integrator.general.state_representation,
     )
+
+    console_print_settings = propagator_settings.print_settings
+    # console_print_settings.enable_all_printing(0, 0)
+    # console_print_settings.print_state_indices = True
+    # console_print_settings.print_dependent_variable_indices = True
+    # console_print_settings.print_propagation_clock_time = True
+    # console_print_settings.print_termination_reason = True
+    # console_print_settings.print_number_of_function_evaluations = True
+    # console_print_settings.print_initial_and_final_conditions = True
+
+    log.info("Generated settings for translational propagator")
+    return propagator_settings

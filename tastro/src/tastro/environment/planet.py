@@ -4,6 +4,7 @@ from tudatpy.dynamics.environment_setup import (
     rotation_model as trots,
     shape as tshapes,
     gravity_field as tgravs,
+    radiation_pressure as trad,
 )
 from tudatpy.math import interpolators as tint
 from tudatpy.astro import time_representation as ttime
@@ -317,4 +318,28 @@ class PlanetSettings(SettingsGenerator[PlanetSetup]):
             case _:
                 raise NotImplementedError(
                     f"Invalid gravity model: {self.local.gravity.model}"
+                )
+
+    def radiation_source_settings(self) -> trad.RadiationSourceModelSettings:
+
+        match self.local.radiation.model:
+
+            case "direct_isotropic":
+
+                log.debug("Direct isotropic radiation source")
+
+                # Define settings for luminosity model
+                luminosity = self.local.radiation.direct_setup.luminosity
+                if luminosity is None:
+                    raise ValueError(
+                        "Missing luminosity for direct radiation source"
+                    )
+                luminosity_settings = trad.constant_luminosity(luminosity)
+
+                # Return isotropic source settings
+                return trad.isotropic_radiation_source(luminosity_settings)
+
+            case _:
+                raise NotImplementedError(
+                    f"Invalid radiation source model: {self.local.radiation.model}"
                 )
