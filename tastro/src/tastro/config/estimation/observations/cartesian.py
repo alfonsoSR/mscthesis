@@ -8,6 +8,7 @@ class CartesianSourceSetup(SetupBase):
 
     path: Path = NotImplemented
     link: str = NotImplemented
+    use_ephemerides: bool = NotImplemented
 
 
 @dataclass

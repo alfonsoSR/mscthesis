@@ -31,7 +31,7 @@ def paneled_mex_model() -> tvs.FullPanelledBodySettings:
 
     # Define panels for solar array Y+
     sp_area = 6.351  # Onshape
-    spp_frame = "MEX_SA+Y_ZERO"
+    spp_frame = "MEX_SPACECRAFT"
     spp_zp_panel_geometry = tvs.frame_fixed_panel_geometry(
         surface_normal=np.array([0.0, 0.0, 1.0]),
         area=sp_area,
@@ -44,7 +44,7 @@ def paneled_mex_model() -> tvs.FullPanelledBodySettings:
     )
 
     # Define panels for solar array Y-
-    spn_frame = "MEX_SA-Y_ZERO"
+    spn_frame = "MEX_SPACECRAFT"
     spn_zp_panel_geometry = tvs.frame_fixed_panel_geometry(
         surface_normal=np.array([0.0, 0.0, 1.0]),
         area=sp_area,
@@ -156,18 +156,18 @@ def paneled_mex_model() -> tvs.FullPanelledBodySettings:
 
     # Define panelled model
     panels = [
-        hga_zp_panel,
+        # hga_zp_panel,
         # hga_zn_panel,
-        # spp_zp_panel,
-        # spp_zn_panel,
-        # spn_zp_panel,
-        # spn_zn_panel,
-        # bus_xy_zp_panel,
-        # bus_xy_zn_panel,
-        # bus_xz_yp_panel,
-        # bus_xz_yn_panel,
-        # bus_yz_xp_panel,
-        # bus_yz_xn_panel,
+        spp_zp_panel,
+        spp_zn_panel,
+        spn_zp_panel,
+        spn_zn_panel,
+        bus_xy_zp_panel,
+        bus_xy_zn_panel,
+        bus_xz_yp_panel,
+        bus_xz_yn_panel,
+        bus_yz_xp_panel,
+        bus_yz_xn_panel,
     ]
     mex_paneled_model = tvs.full_panelled_body_settings(panels)
 

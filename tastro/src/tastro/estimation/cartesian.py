@@ -33,9 +33,18 @@ class CartesianSettingsGenerator(
 
             # Load propagation results from file
             raw_observations = PropagationOutput.from_file(source.path)
-            cartesian_positions = [
-                item for item in raw_observations.cstate_j2000[:, :3]
-            ]
+
+            # Retrieve cartesian positions based on configuration
+            if source.use_ephemerides:
+                log.debug("Using positions from ephemerides")
+                cartesian_positions = [
+                    item for item in raw_observations.rstate_j2000[:, :3]
+                ]
+            else:
+                log.debug("Using positions from propagation")
+                cartesian_positions = [
+                    item for item in raw_observations.cstate_j2000[:, :3]
+                ]
 
             # Generate single observation set
             observation_collection_contents.append(
