@@ -1,5 +1,10 @@
-from tudatpy.dynamics import environment as tenv
+from tudatpy.dynamics import (
+    environment as tenv,
+    parameters_setup as tpars,
+    parameters as tpar,
+)
 from tudatpy.dynamics.environment_setup import ephemeris as tephs
+from tudatpy.dynamics.propagation_setup import propagator as tprop
 from tudatpy.interface import spice
 from tudatpy.estimation.observable_models_setup import (
     light_time_corrections as tlight,
@@ -214,3 +219,57 @@ class EstimationManager:
             )
 
         return observation_models
+
+    def parameters_to_estimate(
+        self, propagator: tprop.PropagatorSettings, bodies: tenv.SystemOfBodies
+    ) -> tpar.EstimatableParameterSet:
+
+        log.info("Defining parameters to estimate")
+
+        # Initialize list of parameters to estimate
+        parameters: list[tpars.EstimatableParameterSettings] = []
+
+        # Initial states of propagated bodies
+        if self.config.estimation.parameters.initial_states:
+
+            log.debug("Estimation of initial states")
+
+            parameters += tpars.initial_states(
+                propagator_settings=propagator,
+                bodies=bodies,
+            )
+
+        # Drag coefficient
+        if self.config.estimation.parameters.drag_coefficient:
+
+            log.debug("Estimation of drag coefficient")
+
+            parameters.append(
+                tpars.constant_drag_coefficient(
+                    body=self.config.environment.general.spacecraft
+                )
+            )
+
+        # Radiation pressure coefficient
+        if self.config.estimation.parameters.radiation_pressure_coefficient:
+
+            log.debug("Estimation of radiation pressure coefficients")
+
+            parameters.append(
+                tpars.radiation_pressure_coefficient(
+                    body=self.config.environment.general.spacecraft
+                )
+            )
+
+        if len(parameters) == 0:
+            raise ValueError(
+                "Requested estimation without parameters to estimate"
+            )
+
+        # Create parameter set
+        return tpars.create_parameter_set(
+            parameter_settings=parameters,
+            bodies=bodies,
+            propagator_settings=propagator,
+            # consider_parameters
+        )

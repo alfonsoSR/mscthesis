@@ -52,8 +52,9 @@ class ExternalAccelerationSettingsGenerator:
 
         return tacs.relativistic_correction(
             use_schwarzschild=self.acceleration.relativistic.use_karl,
-            use_lense_thirring=self.acceleration.relativistic.use_lense,
-            use_de_sitter=False,
+            use_lense_thirring=False,
+            use_de_sitter=self.acceleration.relativistic.use_lense,
+            de_sitter_central_body=self.config.environment.general.center,
         )
 
     def radiation_pressure_settings(self) -> tacs.AccelerationSettings:
@@ -61,3 +62,9 @@ class ExternalAccelerationSettingsGenerator:
         log.debug(f"Radiation pressure: {self.source} on {self.vehicle}")
 
         return tacs.radiation_pressure()
+
+    def aerodynamic_settings(self) -> tacs.AccelerationSettings:
+
+        log.debug(f"Aerodynamics: {self.source} on {self.vehicle}")
+
+        return tacs.aerodynamic()

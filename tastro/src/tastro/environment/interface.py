@@ -58,6 +58,12 @@ def system_of_bodies_from_config(config: "CaseSetup") -> "tenv.SystemOfBodies":
                 generator.radiation_target_settings()
             )
 
+        # Aerodynamic interface
+        if spacecraft_setup.aerodynamics.present:
+            spacecraft_settings.aerodynamic_coefficient_settings = (
+                generator.aerodynamic_settings()
+            )
+
     # Define settings for planets
     for planet, planet_setup in config.environment.planets.items():
 
@@ -99,8 +105,14 @@ def system_of_bodies_from_config(config: "CaseSetup") -> "tenv.SystemOfBodies":
                 generator.radiation_source_settings()
             )
 
+        # Atmosphere settings
+        if planet_setup.atmosphere.present:
+            planet_settings.atmosphere_settings = (
+                generator.atmosphere_settings()
+            )
+
     # Define settings for ground stations
-    if "Earth" in config.environment.planets and config.estimation.present:
+    if "Earth" in config.environment.planets and config.perform_estimation:
 
         # Get settings for Earth
         ground_station_settings = []
@@ -128,6 +140,8 @@ def system_of_bodies_from_config(config: "CaseSetup") -> "tenv.SystemOfBodies":
     log.info("Creating system of bodies")
     bodies = tenvs.create_system_of_bodies(environment_settings)
 
+    print(f"PANELS: {bodies.get("MEX").system_models.has_panels()}")
+
     # Update vehicles with mass if defined
     for vehicle, vehicle_setup in config.environment.vehicles.items():
         if vehicle_setup.systems.mass is not None:
@@ -137,7 +151,7 @@ def system_of_bodies_from_config(config: "CaseSetup") -> "tenv.SystemOfBodies":
             bodies.get(vehicle).mass = vehicle_setup.systems.mass
 
     # If estimation is present, update system of bodies
-    if config.estimation.present:
+    if config.perform_estimation:
         bodies = update_system_of_bodies(config, bodies)
 
     return bodies

@@ -1,5 +1,8 @@
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = [
+    "setuptools",
+    "wheel"
+]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,13 +10,16 @@ name = "tastro"
 version = "0.1.0"
 description = ""
 authors = [
-  {name = "Alfonso Sánchez Rodríguez", email = "a.sanchezrodriguez@student.tudelft.nl"},
+    { name = "Alfonso Sánchez Rodríguez", email = "a.sanchezrodriguez@student.tudelft.nl" }
 ]
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+]
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = [
+    "src"
+]
 
 [tool.mypy]
 mypy_path = "src"
@@ -28,3 +34,10 @@ warn_return_any = true
 warn_unreachable = true
 warn_unused_configs = true
 no_implicit_reexport = true
+
+[project.scripts]
+compare_propagations = "tastro.analysis.propagation_results:compare_propagations"
+drsw_ephemerides = "tastro.analysis.propagation_results:compare_to_ephemerides_rsw"
+dj2000_ephemerides = "tastro.analysis.propagation_results:compare_to_ephemerides_j2000"
+show_residuals = "tastro.analysis.estimation_results:show_residual_history"
+tsimulator = "tastro.analysis.runner:runner"

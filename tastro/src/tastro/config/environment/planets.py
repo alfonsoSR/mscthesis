@@ -48,6 +48,23 @@ class PlanetRadiationSourceSetup(SetupCollectionBase):
     direct_setup: DirectRadiationSourceSetup
 
 
+class PlanetExponentialAtmosphereSetup(SetupBase):
+
+    scale_height: float | None = NotImplemented
+    surface_density: float | None = NotImplemented
+    constant_temperature: float | None = NotImplemented
+    specific_gas_constant: float | None = NotImplemented
+    ratio_specific_heats: float | None = NotImplemented
+
+
+@dataclass
+class PlanetAtmosphereSetup(SetupCollectionBase):
+
+    present: bool
+    model: str
+    exponential_settings: PlanetExponentialAtmosphereSetup
+
+
 @dataclass
 class PlanetSetup(SetupCollectionBase):
 
@@ -57,3 +74,4 @@ class PlanetSetup(SetupCollectionBase):
     shape: PlanetShapeSetup
     gravity: PlanetGravitySetup
     radiation: PlanetRadiationSourceSetup
+    atmosphere: PlanetAtmosphereSetup

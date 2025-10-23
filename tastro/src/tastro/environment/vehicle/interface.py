@@ -1,177 +1,18 @@
-from ..config.environment.vehicles import VehicleSetup
+from ...config.environment.vehicles import VehicleSetup
 from tudatpy.dynamics.environment_setup import (
     ephemeris as tephs,
     rotation_model as trots,
     radiation_pressure as trad,
     shape as tshape,
     vehicle_systems as tvs,
+    aerodynamic_coefficients as taero,
 )
 import numpy as np
-from ..core import SettingsGenerator
+from ...core import SettingsGenerator
 from tudatpy.dynamics.environment import SystemOfBodies
 from tudatpy.interface import spice
-from ..logging import log
-from ..config import CaseSetup
-
-
-def paneled_mex_model() -> tvs.FullPanelledBodySettings:
-
-    # Define panels for HGA
-    hga_area = 2.270  # OnShape
-    hga_zp_panel_geometry = tvs.frame_fixed_panel_geometry(
-        surface_normal=np.array([0.0, 0.0, 1.0]),
-        area=hga_area,
-        frame_orientation="MEX_HGA",
-    )
-    hga_zn_panel_geometry = tvs.frame_fixed_panel_geometry(
-        surface_normal=np.array([0.0, 0.0, -1.0]),
-        area=hga_area,
-        frame_orientation="MEX_HGA",
-    )
-
-    # Define panels for solar array Y+
-    sp_area = 6.351  # Onshape
-    spp_frame = "MEX_SPACECRAFT"
-    spp_zp_panel_geometry = tvs.frame_fixed_panel_geometry(
-        surface_normal=np.array([0.0, 0.0, 1.0]),
-        area=sp_area,
-        frame_orientation=spp_frame,
-    )
-    spp_zn_panel_geometry = tvs.frame_fixed_panel_geometry(
-        surface_normal=np.array([0.0, 0.0, -1.0]),
-        area=sp_area,
-        frame_orientation=spp_frame,
-    )
-
-    # Define panels for solar array Y-
-    spn_frame = "MEX_SPACECRAFT"
-    spn_zp_panel_geometry = tvs.frame_fixed_panel_geometry(
-        surface_normal=np.array([0.0, 0.0, 1.0]),
-        area=sp_area,
-        frame_orientation=spn_frame,
-    )
-    spn_zn_panel_geometry = tvs.frame_fixed_panel_geometry(
-        surface_normal=np.array([0.0, 0.0, -1.0]),
-        area=sp_area,
-        frame_orientation=spn_frame,
-    )
-
-    # Define panels for bus
-    bus_frame = "MEX_SPACECRAFT"
-    bus_xy_area = 2.434
-    bus_xz_area = 2.006
-    bus_yz_area = 2.398
-
-    bus_xy_zp_panel_geometry = tvs.frame_fixed_panel_geometry(
-        surface_normal=np.array([0.0, 0.0, 1.0]),
-        area=bus_xy_area,
-        frame_orientation=bus_frame,
-    )
-    bus_xy_zn_panel_geometry = tvs.frame_fixed_panel_geometry(
-        surface_normal=np.array([0.0, 0.0, -1.0]),
-        area=bus_xy_area,
-        frame_orientation=bus_frame,
-    )
-
-    bus_xz_yp_panel_geometry = tvs.frame_fixed_panel_geometry(
-        surface_normal=np.array([0.0, 1.0, 0.0]),
-        area=bus_xz_area,
-        frame_orientation=bus_frame,
-    )
-    bus_xz_yn_panel_geometry = tvs.frame_fixed_panel_geometry(
-        surface_normal=np.array([0.0, -1.0, 0.0]),
-        area=bus_xz_area,
-        frame_orientation=bus_frame,
-    )
-
-    bus_yz_xp_panel_geometry = tvs.frame_fixed_panel_geometry(
-        surface_normal=np.array([1.0, 0.0, 0.0]),
-        area=bus_yz_area,
-        frame_orientation=bus_frame,
-    )
-    bus_yz_xn_panel_geometry = tvs.frame_fixed_panel_geometry(
-        surface_normal=np.array([-1.0, 0.0, 0.0]),
-        area=bus_yz_area,
-        frame_orientation=bus_frame,
-    )
-
-    # Define reflection laws (Check with Dominic)
-    sp_reflection_law = trad.lambertian_body_panel_reflection(1 - 0.72)
-    bus_reflection_law = trad.lambertian_body_panel_reflection(0.9)
-    hga_reflection_law = trad.lambertian_body_panel_reflection(0.9)
-
-    # Define panels for solar arrays
-    spp_zp_panel = tvs.body_panel_settings(
-        panel_geometry=spp_zp_panel_geometry,
-        panel_reflection_law=sp_reflection_law,
-    )
-    spp_zn_panel = tvs.body_panel_settings(
-        panel_geometry=spp_zn_panel_geometry,
-        panel_reflection_law=sp_reflection_law,
-    )
-    spn_zp_panel = tvs.body_panel_settings(
-        panel_geometry=spn_zp_panel_geometry,
-        panel_reflection_law=sp_reflection_law,
-    )
-    spn_zn_panel = tvs.body_panel_settings(
-        panel_geometry=spn_zn_panel_geometry,
-        panel_reflection_law=sp_reflection_law,
-    )
-
-    # Define panels for bus
-    bus_xy_zp_panel = tvs.body_panel_settings(
-        panel_geometry=bus_xy_zp_panel_geometry,
-        panel_reflection_law=bus_reflection_law,
-    )
-    bus_xy_zn_panel = tvs.body_panel_settings(
-        panel_geometry=bus_xy_zn_panel_geometry,
-        panel_reflection_law=bus_reflection_law,
-    )
-    bus_xz_yp_panel = tvs.body_panel_settings(
-        panel_geometry=bus_xz_yp_panel_geometry,
-        panel_reflection_law=bus_reflection_law,
-    )
-    bus_xz_yn_panel = tvs.body_panel_settings(
-        panel_geometry=bus_xz_yn_panel_geometry,
-        panel_reflection_law=bus_reflection_law,
-    )
-    bus_yz_xp_panel = tvs.body_panel_settings(
-        panel_geometry=bus_yz_xp_panel_geometry,
-        panel_reflection_law=bus_reflection_law,
-    )
-    bus_yz_xn_panel = tvs.body_panel_settings(
-        panel_geometry=bus_yz_xn_panel_geometry,
-        panel_reflection_law=bus_reflection_law,
-    )
-
-    # Define panels for HGA
-    hga_zp_panel = tvs.body_panel_settings(
-        panel_geometry=hga_zp_panel_geometry,
-        panel_reflection_law=hga_reflection_law,
-    )
-    hga_zn_panel = tvs.body_panel_settings(
-        panel_geometry=hga_zn_panel_geometry,
-        panel_reflection_law=hga_reflection_law,
-    )
-
-    # Define panelled model
-    panels = [
-        # hga_zp_panel,
-        # hga_zn_panel,
-        spp_zp_panel,
-        spp_zn_panel,
-        spn_zp_panel,
-        spn_zn_panel,
-        bus_xy_zp_panel,
-        bus_xy_zn_panel,
-        bus_xz_yp_panel,
-        bus_xz_yn_panel,
-        bus_yz_xp_panel,
-        bus_yz_xn_panel,
-    ]
-    mex_paneled_model = tvs.full_panelled_body_settings(panels)
-
-    return mex_paneled_model
+from ...logging import log
+from .macro import paneled_mex_model
 
 
 class VehicleSettings(SettingsGenerator[VehicleSetup]):
@@ -380,6 +221,46 @@ class VehicleSettings(SettingsGenerator[VehicleSetup]):
             case _:
                 raise NotImplementedError(
                     f"Invalid vehicle shape model: {self.local.shape.model}"
+                )
+
+    def aerodynamic_settings(self) -> taero.AerodynamicCoefficientSettings:
+
+        aero_setup = self.local.aerodynamics
+
+        match aero_setup.model:
+
+            case "cannonball":
+
+                log.debug("Cannonball aerodynamics")
+
+                return taero.constant(
+                    reference_area=aero_setup.cannonball_settings.reference_area,
+                    constant_force_coefficient=aero_setup.cannonball_settings.force_coefficients,
+                    force_coefficients_frame=aero_setup.cannonball_settings.coefficient_frame,
+                )
+
+            case "paneled":
+
+                log.debug("Constant variable cross section aerodynamics")
+
+                return taero.constant_variable_cross_section(
+                    constant_force_coefficient=aero_setup.cannonball_settings.force_coefficients,
+                    force_coefficients_frame=aero_setup.cannonball_settings.coefficient_frame,
+                    maximum_number_of_pixels=0,
+                )
+
+                raise NotImplementedError(
+                    "Paneled aerodynamics not implemented"
+                )
+
+                return taero.constant_variable_cross_section(
+                    constant_force_coefficient=[1.0, 0.0, 0.0],
+                    force_coefficients_frame=taero.AerodynamicCoefficientFrames.negative_aerodynamic_frame_coefficients,
+                )
+
+            case _:
+                raise NotImplementedError(
+                    f"Invalid vehicle aerodynamic model: {self.local.aerodynamics.model}"
                 )
 
     def doppler_tracking_settings(

@@ -5,6 +5,7 @@ from tudatpy.dynamics.environment_setup import (
     shape as tshapes,
     gravity_field as tgravs,
     radiation_pressure as trad,
+    atmosphere as tatmos,
 )
 from tudatpy.math import interpolators as tint
 from tudatpy.astro import time_representation as ttime
@@ -343,3 +344,91 @@ class PlanetSettings(SettingsGenerator[PlanetSetup]):
                 raise NotImplementedError(
                     f"Invalid radiation source model: {self.local.radiation.model}"
                 )
+
+    def atmosphere_settings(self) -> tatmos.AtmosphereSettings:
+
+        match self.local.atmosphere.model:
+
+            case "exponential":
+
+                log.debug(f"Exponential atmosphere")
+
+                # Ensure settings for exponential atmosphere are available
+                scale_height = (
+                    self.local.atmosphere.exponential_settings.scale_height
+                )
+                if scale_height is None:
+                    raise ValueError(
+                        "Missing scale height for exponential atmosphere of "
+                        f"{self.name}"
+                    )
+                surface_density = (
+                    self.local.atmosphere.exponential_settings.surface_density
+                )
+                if surface_density is None:
+                    raise ValueError(
+                        "Missing surface density for exponential atmosphere of "
+                        f"{self.name}"
+                    )
+                constant_temperature = (
+                    self.local.atmosphere.exponential_settings.constant_temperature
+                )
+                if constant_temperature is None:
+                    raise ValueError(
+                        "Missing constant temperature for exponential atmosphere of "
+                        f"{self.name}"
+                    )
+
+                specific_gas_constant = (
+                    self.local.atmosphere.exponential_settings.specific_gas_constant
+                )
+                if specific_gas_constant is None:
+                    raise ValueError(
+                        "Missing specific gas constant for exponential atmosphere of "
+                        f"{self.name}"
+                    )
+
+                ratio_specific_heats = (
+                    self.local.atmosphere.exponential_settings.ratio_specific_heats
+                )
+                if ratio_specific_heats is None:
+                    raise ValueError(
+                        "Missing ratio of specific heats for exponential atmosphere of "
+                        f"{self.name}"
+                    )
+
+                # Return settings for exponential atmosphere
+                return tatmos.exponential(
+                    scale_height=scale_height,
+                    surface_density=surface_density,
+                    constant_temperature=constant_temperature,
+                    specific_gas_constant=specific_gas_constant,
+                    ratio_specific_heats=ratio_specific_heats,
+                )
+
+            case "exponential_predefined":
+
+                log.debug("Exponential predefined atmosphere")
+
+                if self.name not in ("Earth", "Mars"):
+                    raise ValueError(
+                        "Predefined exponential atmosphere not available for "
+                        f"{self.name}"
+                    )
+
+                return tatmos.exponential_predefined(self.name)
+
+            case "mars_dtm":
+
+                log.debug("Mars DTM atmosphere")
+
+                # Only valid for Mars
+                if self.name != "Mars":
+                    raise ValueError(
+                        f"Tried to use Mars DTM atmosphere for {self.name}"
+                    )
+
+                return tatmos.mars_dtm()
+
+            case _:
+                raise NotImplementedError(f"Invalid atmosphere model:")

@@ -7,6 +7,5 @@ from .integration import IntegrationSetup
 @dataclass
 class PropagationSetup(SetupCollectionBase):
 
-    present: bool
     integrator: IntegrationSetup
     accelerations: dict[str, TargetAccelerationSetup]

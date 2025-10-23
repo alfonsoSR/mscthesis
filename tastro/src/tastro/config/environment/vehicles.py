@@ -1,6 +1,7 @@
 from ..core import SetupBase, SetupCollectionBase
 from tudatpy.astro import time_representation as ttime
 from dataclasses import dataclass
+from tudatpy.dynamics.environment_setup import aerodynamic_coefficients as taero
 
 
 class VehicleEphemerisSetup(SetupBase):
@@ -45,6 +46,21 @@ class VehicleShapeSetup(SetupBase):
     model: str = NotImplemented
 
 
+class CannonballAerodynamicsSetup(SetupBase):
+
+    reference_area: float = NotImplemented
+    force_coefficients: list[float] = NotImplemented
+    coefficient_frame: taero.AerodynamicCoefficientFrames = NotImplemented
+
+
+@dataclass
+class VehicleAerodynamicSetup(SetupCollectionBase):
+
+    present: bool
+    model: str
+    cannonball_settings: CannonballAerodynamicsSetup
+
+
 @dataclass
 class VehicleSetup(SetupCollectionBase):
 
@@ -54,4 +70,5 @@ class VehicleSetup(SetupCollectionBase):
     radiation: VehicleRadiationTargetSetup
     systems: VehicleSystemsSetup
     shape: VehicleShapeSetup
+    aerodynamics: VehicleAerodynamicSetup
     # reference_point: VehicleReferencePointSetup

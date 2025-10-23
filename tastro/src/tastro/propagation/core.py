@@ -213,6 +213,12 @@ class PropagationSettings:
                         body_generator.radiation_pressure_settings()
                     )
 
+                # Aerodynamics settings
+                if body_acceleration_setup.aerodynamic.present:
+                    body_acceleration_settings.append(
+                        body_generator.aerodynamic_settings()
+                    )
+
                 # Add to vehicle acceleration settings if not empty
                 if len(body_acceleration_settings) > 0:
                     vehicle_acceleration_settings[body] = (

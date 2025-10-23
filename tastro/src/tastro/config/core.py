@@ -6,6 +6,7 @@ from tudatpy.dynamics.propagation_setup import (
     integrator as tigrs,
     propagator as tprops,
 )
+from tudatpy.dynamics.environment_setup import aerodynamic_coefficients as taero
 from tudatpy.estimation.observable_models_setup import (
     links as tlinks,
     light_time_corrections as tlight,
@@ -21,6 +22,7 @@ ENUMERATIONS = (
     tlinks.LinkEndType,
     tanc.FrequencyBands,
     tlight.LightTimeFailureHandling,
+    taero.AerodynamicCoefficientFrames,
 )
 
 
