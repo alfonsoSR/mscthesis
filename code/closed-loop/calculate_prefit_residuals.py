@@ -21,18 +21,18 @@ from tudatpy.math import interpolators as tinterp
 import shutil
 import argparse
 from matplotlib import pyplot as plt
+from proptools.propagation import generate_body_settings_from_config
 
 Parser = argparse.ArgumentParser()
 Parser.add_argument("config_file", help="Path to configuration file")
 
 
-def define_system_of_bodies_from_raw_observations(
-    configuration: pio.PrefitSettings,
+def define_simulation_time_range_from_observations(
     raw_observations_per_station: dict[str, pio.TwoWayDopplerObservations],
-) -> tenv.SystemOfBodies:
+) -> tuple[ttime.Time, ttime.Time]:
 
-    # Define initial and final epochs based on observation span
-    initial_epoch_et = np.infty
+    # Define limits of time interval in ET from observation data
+    initial_epoch_et = np.inf
     final_epoch_et = 0
     for raw_observations in raw_observations_per_station.values():
         if raw_observations.observation_epochs_et[0] < initial_epoch_et:
@@ -42,8 +42,34 @@ def define_system_of_bodies_from_raw_observations(
     assert isinstance(initial_epoch_et, ttime.Time)
     assert isinstance(final_epoch_et, ttime.Time)
 
-    # General configuration: Time interval in UTC
+    return initial_epoch_et, final_epoch_et
+
+
+def define_system_of_bodies_from_raw_observations(
+    configuration: pio.PrefitSettings,
+    raw_observations_per_station: dict[str, pio.TwoWayDopplerObservations],
+) -> tenv.SystemOfBodies:
+
+    # Define initial and final epochs based on observation span [TDB]
+    initial_epoch_tdb, final_epoch_tdb = (
+        define_simulation_time_range_from_observations(
+            raw_observations_per_station,
+        )
+    )
+    # initial_epoch_et = np.infty
+    # final_epoch_et = 0
+    # for raw_observations in raw_observations_per_station.values():
+    #     if raw_observations.observation_epochs_et[0] < initial_epoch_et:
+    #         initial_epoch_et = raw_observations.observation_epochs_et[0]
+    #     if raw_observations.observation_epochs_et[-1] > final_epoch_et:
+    #         final_epoch_et = raw_observations.observation_epochs_et[-1]
+    # assert isinstance(initial_epoch_et, ttime.Time)
+    # assert isinstance(final_epoch_et, ttime.Time)
+
+    # Augment default time range with buffer for interpolation
     buffer_time = ttime.Time(configuration.time["buffer"])
+    initial_epoch_buffer = initial_epoch_tdb - buffer_time
+    final_epoch_buffer = final_epoch_tdb + buffer_time
 
     # General configuration: System of bodies
     global_frame_origin: str = "SSB"
@@ -53,17 +79,15 @@ def define_system_of_bodies_from_raw_observations(
     correction_bodies: list[str] = configuration.light_time["massive_bodies"]
     spacecraft_name: str = configuration.bodies["Spacecraft"]["name"]
 
-    # Transform ET epochs to TDB
-    initial_epoch_tdb = ttime.DateTime.from_julian_day(
-        ttime.seconds_since_epoch_to_julian_day(initial_epoch_et.to_float())
-    ).to_epoch_time_object()
-    final_epoch_tdb = ttime.DateTime.from_julian_day(
-        ttime.seconds_since_epoch_to_julian_day(final_epoch_et.to_float())
-    ).to_epoch_time_object()
+    # # Transform ET epochs to TDB
+    # initial_epoch_tdb = ttime.DateTime.from_julian_day(
+    #     ttime.seconds_since_epoch_to_julian_day(initial_epoch_et.to_float())
+    # ).to_epoch_time_object()
+    # final_epoch_tdb = ttime.DateTime.from_julian_day(
+    #     ttime.seconds_since_epoch_to_julian_day(final_epoch_et.to_float())
+    # ).to_epoch_time_object()
 
-    # Apply buffer to initial and final epochs (UTC)
-    initial_epoch_buffer = initial_epoch_tdb - buffer_time
-    final_epoch_buffer = final_epoch_tdb + buffer_time
+    # # Apply buffer to initial and final epochs (UTC)
 
     # Initialize environment_settings
     environment_settings = tenvs.BodyListSettings(
@@ -333,7 +357,7 @@ def define_system_of_bodies_from_raw_observations(
                     observer_body_name="MEX_SPACECRAFT",
                     reference_frame_name="MEX_SPACECRAFT",
                     aberration_corrections="NONE",
-                    ephemeris_time=initial_epoch_et,
+                    ephemeris_time=initial_epoch_tdb,
                 )
                 - com_pos
             )

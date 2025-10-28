@@ -8,13 +8,16 @@ code/residuals
 .DS_Store
 code/closed-loop/*.txt
 doc
+*.yaml
 
 # Python
 *cache*
 *egg-info*
 _version.py
 *.npy
-
+prefit
+proptools
+code
 
 # Python scripts
 makecalc.py
