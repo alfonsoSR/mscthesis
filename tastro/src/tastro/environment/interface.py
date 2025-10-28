@@ -140,8 +140,6 @@ def system_of_bodies_from_config(config: "CaseSetup") -> "tenv.SystemOfBodies":
     log.info("Creating system of bodies")
     bodies = tenvs.create_system_of_bodies(environment_settings)
 
-    print(f"PANELS: {bodies.get("MEX").system_models.has_panels()}")
-
     # Update vehicles with mass if defined
     for vehicle, vehicle_setup in config.environment.vehicles.items():
         if vehicle_setup.systems.mass is not None:

@@ -5,6 +5,9 @@ from dataclasses import dataclass
 from pathlib import Path
 import argparse
 import numpy as np
+import pickle
+from .utils import get_propagation_start_epoch_from_config
+from tudatpy.astro import time_representation as ttime
 
 
 @dataclass
@@ -177,3 +180,77 @@ def show_residual_history_no_cli(user_input: ResidualCLI) -> None:
             subfig.__exit__(0, 0, 0)
 
             count += 1
+
+
+def show_doppler_residual_history_no_cli(user_input: ResidualCLI) -> None:
+
+    # user_input = ResidualInputParser().parse_args()
+    config = CaseSetup.from_config_file(
+        user_input.source_dir / "configuration.yaml"
+    )
+
+    estimation = EstimationResults.from_file(
+        user_input.source_dir / "estimation.pkl"
+    )
+    propagation = PropagationOutput.from_config_file(
+        user_input.source_dir / "configuration.yaml"
+    )
+
+    # Ephemerides
+    rstate = nt.CartesianState(*propagation.rstate_j2000.T)
+    with (user_input.source_dir / "epochs.pkl").open("rb") as buffer:
+
+        epochs = np.array(pickle.load(buffer))
+
+    assert isinstance(epochs, np.ndarray)
+    assert isinstance(epochs[0], float)
+
+    dir_name = user_input.source_dir.relative_to(
+        user_input.source_dir.parents[2]
+    )
+
+    t0 = get_propagation_start_epoch_from_config(config)
+    t0_iso = ttime.DateTime.from_epoch_time_object(t0).to_iso_string(
+        add_T=True, number_of_digits_seconds=0
+    )
+    dt = (epochs - t0.to_float()) / 3600.0
+
+    # # Get reference from configuration
+    # ref = f"Ref: {config.estimation.observations.cartesian.sources[0].path.parent.name}"
+    # if config.estimation.observations.cartesian.sources[0].use_ephemerides:
+    #     ref += " [Ephemerides]"
+
+    canvas_setup = ng.PlotSetup(
+        canvas_size=(8, 6),
+        canvas_title=f"Doppler residuals :: {dir_name}",
+        show=user_input.show,
+        save=user_input.save,
+        dir=user_input.source_dir,
+        name="doppler-residuals.png",
+        xlabel=f"Hours past {t0_iso}",
+        ylabel="Frequency residual [Hz]",
+    )
+
+    subfig_setup = ng.PlotSetup(
+        xlabel=f"Hours past {t0_iso}",
+        ylabel="Frequency residual [Hz]",
+    )
+
+    with ng.Mosaic("a;b", canvas_setup) as canvas:
+
+        with canvas.subplot(subfig_setup) as fig:
+
+            for idx, residual_set in enumerate(estimation.residual_history.T):
+
+                fig.line(dt, residual_set, fmt=".", label=f"Iteration {idx}")
+
+        with canvas.subplot() as other:
+            pass
+
+
+def show_doppler_residual_history() -> None:
+
+    user_input = ResidualInputParser().parse_args()
+    show_doppler_residual_history_no_cli(user_input)
+
+    return None

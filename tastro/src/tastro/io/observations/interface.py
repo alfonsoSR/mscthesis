@@ -20,6 +20,8 @@ def load_doppler_observations_from_config(
     # Load raw data from IFMS files
     for ifms in config.estimation.observations.closed_loop.sources.ifms:
 
+        continue
+
         log.debug(f"IFMS source: {ifms.name}")
 
         # Identify station from IFMS file name
@@ -68,5 +70,7 @@ def load_doppler_observations_from_config(
         output[station] = DopplerObservationRecord.from_config(
             epochs, values, station, config
         )
+
+    log.info("Finished loading raw Doppler observations")
 
     return output

@@ -22,6 +22,8 @@ class ObservationModelSettingsGenerator[
         link_definitions: dict[str, tlinks.LinkDefinition] = {}
         for link_id, link_config in self.local.link_definitions.items():
 
+            log.debug(f"Link definition :: {link_id}")
+
             link_ends = {
                 getattr(
                     tlinks.LinkEndType, link_end_type
@@ -47,6 +49,8 @@ class ObservationModelSettingsGenerator[
 
                 case "vmf3":
 
+                    log.debug("VMF3 tropospheric correction")
+
                     light_time_corrections.append(
                         tlight.vmf3_tropospheric_light_time_correction(
                             body_with_atmosphere_name="Earth",
@@ -67,6 +71,8 @@ class ObservationModelSettingsGenerator[
 
                 case "ionex":
 
+                    log.debug("IONEX ionospheric correction")
+
                     light_time_corrections.append(
                         tlight.ionex_ionospheric_light_time_correction(
                             body_with_ionosphere_name="",
@@ -84,6 +90,8 @@ class ObservationModelSettingsGenerator[
             match light_time_setup.corrections.relativistic.model:
 
                 case "first_order":
+
+                    log.debug("First order relativistic correction")
 
                     light_time_corrections.append(
                         tlight.first_order_relativistic_light_time_correction(

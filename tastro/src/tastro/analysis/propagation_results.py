@@ -1,4 +1,6 @@
 from ..io import PropagationOutput, EstimationResults, UserInputParser
+from ..config import CaseSetup
+from .utils import get_propagation_start_epoch_from_config
 from nastro import graphics as ng, types as nt
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,6 +15,9 @@ class ComparisonCommandLineArguments:
     reference: Path
     current: Path
     use_ephemerides: bool
+    base_dir: Path
+    save: bool
+    show: bool
 
 
 class ComparisonInputParser(argparse.ArgumentParser):
@@ -41,6 +46,12 @@ class ComparisonInputParser(argparse.ArgumentParser):
         )
 
         self.add_argument("-b", "--base", dest="base_dir", default=".")
+        self.add_argument(
+            "-s", dest="save", action="store_true", help="Save figure"
+        )
+        self.add_argument(
+            "-x", dest="show", action="store_false", help="Do not show figure"
+        )
 
         return None
 
@@ -71,6 +82,9 @@ class ComparisonInputParser(argparse.ArgumentParser):
             reference=reference_dir,
             current=current_dir,
             use_ephemerides=defaults.use_ephemerides,
+            base_dir=base_dir,
+            save=defaults.save,
+            show=defaults.show,
         )
 
 
@@ -121,6 +135,10 @@ def compare_propagations() -> None:
 
     comparison_input = ComparisonInputParser().parse_args()
 
+    # current_config = CaseSetup.from_config_file(
+    #     comparison_input.reference / "configuration.yaml"
+    # )
+
     current = PropagationOutput.from_config_file(
         comparison_input.current / "configuration.yaml"
     )
@@ -134,12 +152,37 @@ def compare_propagations() -> None:
     r_cstate = nt.CartesianState(*reference.cstate_j2000.T)
     r_rstate = nt.CartesianState(*reference.rstate_j2000.T)
 
-    with ng.CompareCartesianStates() as fig:
+    # Define identifiers for reference and current configurations
+    reference_id = comparison_input.reference.relative_to(
+        comparison_input.base_dir
+    )
+    current_id = comparison_input.current.relative_to(comparison_input.base_dir)
+
+    # Get initial epoch of propagation
+    t0 = ttime.DateTime.from_iso_string(
+        "2013-12-29 07:10:08.914099999993401"
+    ).to_epoch_time_object()
+    dt = (epochs - t0.to_float()) / 3600.0
+    t0_isot = ttime.DateTime.from_epoch_time_object(t0).to_iso_string(
+        add_T=True, number_of_digits_seconds=0
+    )
+
+    figure_setup = ng.PlotSetup(
+        canvas_size=(8, 6),
+        canvas_title=f"Difference between {reference_id} and {current_id}",
+        xlabel=f"Hours past {t0_isot}",
+        show=comparison_input.show,
+        save=comparison_input.save,
+        dir=comparison_input.current,
+        name=f"propagation-residual-{str(reference_id).replace("/", "_")}.png",
+    )
+
+    with ng.CompareCartesianStates(figure_setup) as fig:
 
         if comparison_input.use_ephemerides:
-            fig.compare_states(epochs, c_cstate, r_rstate)
+            fig.compare_states(dt, c_cstate, r_rstate, is_dt=True)
         else:
-            fig.compare_states(epochs, c_cstate, r_cstate)
+            fig.compare_states(dt, c_cstate, r_cstate, is_dt=True)
 
     return None
 
@@ -159,12 +202,25 @@ def compare_to_ephemerides_rsw_no_cli(user_input: ResidualCLI) -> None:
 
     cstate = nt.CartesianState[nt.Vector](*results.cstate_rsw.T)
     rstate = nt.CartesianState[nt.Vector](*results.rstate_rsw.T)
-    dt = (results.epochs - results.epochs[0]) / 3600.0
 
-    # Get ISO-T representation of initial epoch
-    initial_epoch_isot = ttime.DateTime.from_epoch(
-        results.epochs[0]
-    ).to_iso_string(add_T=True, number_of_digits_seconds=0)
+    # Get initial epoch of propagation
+    # config = CaseSetup.from_config_file(
+    #     user_input.source_dir / "configuration.yaml"
+    # )
+    t0 = ttime.DateTime.from_iso_string(
+        "2013-12-29 07:10:08.914099999993401"
+    ).to_epoch_time_object()
+    dt = (results.epochs - t0.to_float()) / 3600.0
+    t0_isot = ttime.DateTime.from_epoch_time_object(t0).to_iso_string(
+        add_T=True, number_of_digits_seconds=0
+    )
+
+    # dt = (results.epochs - results.epochs[0]) / 3600.0
+
+    # # Get ISO-T representation of initial epoch
+    # initial_epoch_isot = ttime.DateTime.from_epoch(
+    #     results.epochs[0]
+    # ).to_iso_string(add_T=True, number_of_digits_seconds=0)
 
     # Get relative path to configuration directory
     dir_relpath = user_input.source_dir.relative_to(
@@ -172,7 +228,7 @@ def compare_to_ephemerides_rsw_no_cli(user_input: ResidualCLI) -> None:
     )
 
     fig_setup = ng.PlotSetup(
-        canvas_size=(12, 6),
+        canvas_size=(8, 6),
         canvas_title=f"Propagation vs ephemerides: Mars-RSW :: {dir_relpath}",
         # xlabel=f"Hours past {initial_epoch_isot}",
         dir=user_input.source_dir,
@@ -183,7 +239,7 @@ def compare_to_ephemerides_rsw_no_cli(user_input: ResidualCLI) -> None:
 
     diff = cstate - rstate
     subfig_setup = ng.PlotSetup(
-        xlabel=f"Hours past {initial_epoch_isot}",
+        xlabel=f"Hours past {t0_isot}",
         rlabel=r"$d_{mars}$ [$x10^{-7}$ m]",
         scilimits=(-2, 3),
     )

@@ -40,4 +40,7 @@ compare_propagations = "tastro.analysis.propagation_results:compare_propagations
 drsw_ephemerides = "tastro.analysis.propagation_results:compare_to_ephemerides_rsw"
 dj2000_ephemerides = "tastro.analysis.propagation_results:compare_to_ephemerides_j2000"
 show_residuals = "tastro.analysis.estimation_results:show_residual_history"
+doppler_residuals = "tastro.analysis.estimation_results:show_doppler_residual_history"
 tsimulator = "tastro.analysis.runner:runner"
+tprefit = "tastro.analysis.prefit:prefit_closed_loop_cli"
+show_prefit = "tastro.analysis.prefit:plot_closed_loop_prefits_cli"

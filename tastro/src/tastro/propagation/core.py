@@ -136,12 +136,15 @@ class PropagationSettings:
 
             case "custom":
 
-                log.debug("Propagation from custom epoch")
-
                 # Set custom epoch as start
                 propagation_start = self.integrator.general.custom_start_epoch
                 if propagation_start is None:
                     raise ValueError("Custom propagation start not set")
+
+                start_isot = ttime.DateTime.from_epoch_time_object(
+                    propagation_start
+                ).to_iso_string()
+                log.debug(f"Propagation from custom epoch: {start_isot}")
 
             case _:
                 raise NotImplementedError(

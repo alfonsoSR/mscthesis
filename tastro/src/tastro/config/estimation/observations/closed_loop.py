@@ -2,6 +2,7 @@ from ...core import SetupBase, SetupCollectionBase
 from pathlib import Path
 from dataclasses import dataclass
 from tudatpy.astro import time_representation as ttime
+from .filters import FiltersSetup
 
 
 class ODFSourceSetup(SetupBase):
@@ -34,3 +35,4 @@ class ClosedLoopObservationsSetup(SetupCollectionBase):
     sources: SourcesSetup
     uplink: dict[str, UplinkFrequencySetup]
     compression: ObservationCompressionSetup
+    filters: FiltersSetup

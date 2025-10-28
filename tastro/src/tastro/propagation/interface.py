@@ -5,6 +5,7 @@ from tudatpy.dynamics.propagation_setup import (
     create_acceleration_models,
     propagator as tprops,
     acceleration as tacs,
+    dependent_variable as dvar,
 )
 from tudatpy.interface import spice
 import numpy as np
@@ -19,6 +20,15 @@ def translational_propagator_settings_from_config(
 ) -> tprops.TranslationalStatePropagatorSettings:
 
     log.info("Generating settings for translational propagator")
+
+    # Display basic debug information
+    log.debug(f"Center :: {config.environment.general.center}")
+    log.debug(
+        "State representation :: "
+        + str(config.propagation.integrator.general.state_representation).split(
+            "."
+        )[-1]
+    )
 
     # Initialize settings generator
     generator = PropagationSettings("", config)

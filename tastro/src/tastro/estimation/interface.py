@@ -267,9 +267,12 @@ class EstimationManager:
             )
 
         # Create parameter set
-        return tpars.create_parameter_set(
+        parameter_set = tpars.create_parameter_set(
             parameter_settings=parameters,
             bodies=bodies,
             propagator_settings=propagator,
             # consider_parameters
         )
+
+        log.info("Created parameter set")
+        return parameter_set

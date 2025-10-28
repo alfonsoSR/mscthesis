@@ -2,6 +2,8 @@ from ..config.estimation.observation_models.closed_loop import (
     ClosedLoopDopplerSetup,
 )
 from tudatpy.estimation import observations as tobs
+from tudatpy.astro import time_representation as ttime
+from tudatpy.estimation.observations import observations_processing as tobsp
 from tudatpy.estimation.observable_models_setup import (
     model_settings as toms,
     links as tlinks,
@@ -21,6 +23,52 @@ class ClosedLoopSettingsGenerator(
     ObservationModelSettingsGenerator[ClosedLoopDopplerSetup]
 ):
 
+    def filter_settings(self) -> list[tobsp.ObservationFilterBase]:
+
+        log.info("Defining filters for Doppler observations")
+
+        # Initialize list of filters
+        filters: list[tobsp.ObservationFilterBase] = []
+
+        # Return if filters are not set
+        if not self.config.estimation.observations.closed_loop.filters.present:
+            return filters
+
+        # Alias for filter setup
+        filter_setup = self.config.estimation.observations.closed_loop.filters
+
+        # Absolute filters
+        for absolute_setup in filter_setup.absolute_value:
+
+            filters.append(
+                tobsp.observation_filter(
+                    filter_type=tobsp.ObservationFilterType.absolute_value_filtering,
+                    filter_value=absolute_setup.value,
+                    filter_out=absolute_setup.filter_out,
+                    use_opposite_condition=absolute_setup.use_opposite,
+                )
+            )
+
+        nabs = len(filters)
+        log.debug(f"Using {nabs} absolute filters")
+
+        # Between-epochs filters
+        for epochs_setup in filter_setup.between_epochs:
+
+            filters.append(
+                tobsp.observation_filter(
+                    filter_type=tobsp.ObservationFilterType.time_bounds_filtering,
+                    first_filter_value=epochs_setup.first_epoch,
+                    second_filter_value=epochs_setup.second_epoch,
+                    filter_out=epochs_setup.filter_out,
+                    use_opposite_condition=epochs_setup.use_opposite,
+                )
+            )
+
+        log.debug(f"Using {len(filters) - nabs} filters between epochs")
+
+        return filters
+
     def observation_collection(
         self,
         bodies: SystemOfBodies,
@@ -37,11 +85,13 @@ class ClosedLoopSettingsGenerator(
         # Load raw observation data per station
         data_per_station = load_doppler_observations_from_config(self.config)
 
+        # Define settings for observation filters
+        filters = self.filter_settings()
+
         # Define observation collection
+        log.debug("Processing raw observations")
         observation_collection_contents: list[tobs.SingleObservationSet] = []
         for station, station_data in data_per_station.items():
-
-            log.debug(f"Single observation set: {station}")
 
             # Assign frequency interpolator to the ground station object
             bodies.get("Earth").get_ground_station(
@@ -60,16 +110,30 @@ class ClosedLoopSettingsGenerator(
 
             # Create observation set
             values = [np.array([x]) for x in station_data.observations]
-            observation_collection_contents.append(
-                tobs.single_observation_set(
-                    observable_type=toms.ObservableType.dsn_n_way_averaged_doppler_type,
-                    link_definition=link_definition,
-                    observations=values,
-                    observation_times=station_data.epochs.tolist(),
-                    reference_link_end=tlinks.LinkEndType.receiver,
-                    ancilliary_settings=ancillary_settings,
-                )
+            observation_set = tobs.single_observation_set(
+                observable_type=toms.ObservableType.dsn_n_way_averaged_doppler_type,
+                link_definition=link_definition,
+                observations=values,
+                observation_times=station_data.epochs.tolist(),
+                reference_link_end=tlinks.LinkEndType.receiver,
+                ancilliary_settings=ancillary_settings,
             )
+
+            # Filter out outliers
+            for _filter in filters:
+                observation_set.filter_observations(_filter)
+
+            # Display debug information for station
+            nobs_raw = len(station_data.observations)
+            nobs_filtered = len(observation_set.concatenated_observations)
+            nobs_delta = nobs_raw - nobs_filtered
+            log.debug(
+                f"Station {station} :: Raw {nobs_raw} :: "
+                f"Filtered {nobs_filtered} :: Delta {nobs_delta}"
+            )
+
+            # Add observation set to collection contents
+            observation_collection_contents.append(observation_set)
 
         # Define observation collection
         observation_collection = tobs.ObservationCollection(
@@ -79,7 +143,7 @@ class ClosedLoopSettingsGenerator(
         # Compress observations if requested
         if self.config.estimation.observations.closed_loop.compression.present:
 
-            log.info("Compressing closed-loop observations")
+            log.debug("Compressing closed-loop observations")
 
             compression_ratio = int(
                 self.config.estimation.observations.closed_loop.compression.integration_time.to_float()

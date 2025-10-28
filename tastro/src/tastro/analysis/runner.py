@@ -61,6 +61,7 @@ def runner_no_cli(user_input: CommandLineArguments) -> None:
             nio.PropagationOutput.from_simulation(
                 simulation_results, config
             ).save_to_file(user_input.config_file.parent / "results.pkl")
+            log.info("Saved propagation results")
 
         # Run estimation if requested
         if config.perform_estimation:
@@ -97,6 +98,7 @@ def runner_no_cli(user_input: CommandLineArguments) -> None:
             # )
 
             # Initialize estimator
+            log.info("Initializing estimator")
             estimator = testa.Estimator(
                 bodies=bodies,
                 estimated_parameters=parameters_to_estimate,
@@ -118,6 +120,7 @@ def runner_no_cli(user_input: CommandLineArguments) -> None:
             )
 
             # Perform the estimation
+            log.info("Performing estimation")
             estimation_results = estimator.perform_estimation(estimation_input)  # type: ignore
             assert isinstance(estimation_results, testa.EstimationOutput)
 
