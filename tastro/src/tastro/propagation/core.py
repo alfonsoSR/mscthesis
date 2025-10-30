@@ -51,9 +51,7 @@ class PropagationSettings:
 
                 # Fail if not chosen in table
                 if not self.integrator.rkf_variable.present:
-                    raise ValueError(
-                        "Missing setup for variable step integrator"
-                    )
+                    raise ValueError("Missing setup for variable step integrator")
 
                 # Define step-size control settings
                 control = tigrs.step_size_control_elementwise_matrix_tolerance(
@@ -130,9 +128,7 @@ class PropagationSettings:
                 log.debug("Propagation from middle")
 
                 # Set middle epoch as start
-                propagation_start = (
-                    initial_epoch + (final_epoch - initial_epoch) / 2.0
-                )
+                propagation_start = initial_epoch + (final_epoch - initial_epoch) / 2.0
 
             case "custom":
 
@@ -172,9 +168,9 @@ class PropagationSettings:
     ) -> dict[str, dict[str, list[tacs.AccelerationSettings]]]:
 
         # Initialize container for acceleration settings
-        acceleration_settings: dict[
-            str, dict[str, list[tacs.AccelerationSettings]]
-        ] = {}
+        acceleration_settings: dict[str, dict[str, list[tacs.AccelerationSettings]]] = (
+            {}
+        )
 
         # Iterate over all the vehicles
         for vehicle, vehicle_setup in self.accelerations.items():
@@ -200,9 +196,7 @@ class PropagationSettings:
 
                 # Gravitational acceleration
                 if body_acceleration_setup.gravitational.present:
-                    body_acceleration_settings.append(
-                        body_generator.gravity_settings()
-                    )
+                    body_acceleration_settings.append(body_generator.gravity_settings())
 
                 # Relativistic correction
                 if body_acceleration_setup.relativistic.present:
@@ -224,9 +218,7 @@ class PropagationSettings:
 
                 # Add to vehicle acceleration settings if not empty
                 if len(body_acceleration_settings) > 0:
-                    vehicle_acceleration_settings[body] = (
-                        body_acceleration_settings
-                    )
+                    vehicle_acceleration_settings[body] = body_acceleration_settings
 
             # Add vehicle settings to container if not empty
             if len(vehicle_acceleration_settings.keys()) > 0:

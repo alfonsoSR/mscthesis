@@ -1,5 +1,5 @@
-from ..core import SetupBase, SetupCollectionBase
-from dataclasses import dataclass
+from ..core import SetupBase
+
 from tudatpy.dynamics.propagation_setup import (
     integrator as tigrs,
     propagator as tprops,
@@ -10,34 +10,35 @@ import numpy as np
 
 class GeneralIntegrationSetup(SetupBase):
 
-    starting_point: str = NotImplemented
-    custom_start_epoch: ttime.Time | None = NotImplemented
-    terminate_exactly: bool = NotImplemented
-    state_representation: tprops.TranslationalPropagatorType = NotImplemented
-    integrator_type: str = NotImplemented
+    starting_point: str
+    custom_start_epoch: ttime.Time
+    terminate_exactly: bool
+    state_representation: tprops.TranslationalPropagatorType
+    integrator_type: str
 
 
 class RKFixedSetup(SetupBase):
 
-    coefficients: tigrs.CoefficientSets = NotImplemented
-    step_size: ttime.Time = NotImplemented
+    present: bool
+    coefficients: tigrs.CoefficientSets
+    step_size: ttime.Time
 
 
 class RKVariableSetup(SetupBase):
 
-    coefficients: tigrs.CoefficientSets = NotImplemented
-    initial_step: ttime.Time = NotImplemented
-    rtols: np.ndarray = NotImplemented
-    atols: np.ndarray = NotImplemented
-    safety_factor: float = NotImplemented
-    min_increment: float = NotImplemented
-    max_increment: float = NotImplemented
-    min_step: ttime.Time = NotImplemented
-    max_step: ttime.Time = NotImplemented
+    present: bool
+    coefficients: tigrs.CoefficientSets
+    initial_step: ttime.Time
+    rtols: np.ndarray
+    atols: np.ndarray
+    safety_factor: float
+    min_increment: float
+    max_increment: float
+    min_step: ttime.Time
+    max_step: ttime.Time
 
 
-@dataclass
-class IntegrationSetup(SetupCollectionBase):
+class IntegrationSetup(SetupBase):
 
     general: GeneralIntegrationSetup
     rkf_fixed: RKFixedSetup

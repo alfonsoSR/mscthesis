@@ -13,9 +13,9 @@ from ..config.estimation.observation_models.links import LinkEndSetup
 from ..logging import log
 
 
-class ObservationModelSettingsGenerator[
-    T: (CartesianSetup, ClosedLoopDopplerSetup)
-](SettingsGenerator[T]):
+class ObservationModelSettingsGenerator[T: (CartesianSetup, ClosedLoopDopplerSetup)](
+    SettingsGenerator[T]
+):
 
     def link_definitions(self) -> dict[str, tlinks.LinkDefinition]:
 
@@ -25,9 +25,9 @@ class ObservationModelSettingsGenerator[
             log.debug(f"Link definition :: {link_id}")
 
             link_ends = {
-                getattr(
-                    tlinks.LinkEndType, link_end_type
-                ): link_end_from_config(link_end_config)
+                getattr(tlinks.LinkEndType, link_end_type): link_end_from_config(
+                    link_end_config
+                )
                 for link_end_type, link_end_config in link_config.__dict__.items()
             }
             link_definitions[link_id] = tlinks.LinkDefinition(link_ends)
@@ -118,9 +118,7 @@ class ObservationModelSettingsGenerator[
 
 def link_end_from_config(link_end_config: LinkEndSetup) -> tlinks.LinkEndId:
 
-    log.debug(
-        f"Link end: {link_end_config.reference_point} in {link_end_config.body}"
-    )
+    log.debug(f"Link end: {link_end_config.reference_point} in {link_end_config.body}")
 
     if link_end_config.reference_point == "origin":
         return tlinks.body_origin_link_end_id(link_end_config.body)

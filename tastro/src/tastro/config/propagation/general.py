@@ -1,11 +1,10 @@
-from ..core import SetupCollectionBase
-from dataclasses import dataclass
+from ..core import SetupBase
+
 from .accelerations import TargetAccelerationSetup
 from .integration import IntegrationSetup
 
 
-@dataclass
-class PropagationSetup(SetupCollectionBase):
+class PropagationSetup(SetupBase):
 
     integrator: IntegrationSetup
     accelerations: dict[str, TargetAccelerationSetup]

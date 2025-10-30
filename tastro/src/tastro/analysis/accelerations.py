@@ -31,9 +31,7 @@ class AccelerationsInput:
 def accelerations(user_input: AccelerationsInput) -> None:
 
     # Get configuration from user input
-    config = ncon.CaseSetup.from_config_file(
-        user_input.source / "configuration.yaml"
-    )
+    config = ncon.CaseSetup.from_config_file(user_input.source / "configuration.yaml")
 
     # Define path to metakernel
     metakernel = Path(user_input.source / "metak.tm").absolute()
@@ -44,9 +42,7 @@ def accelerations(user_input: AccelerationsInput) -> None:
         # Create system of bodies
         bodies = nenv.system_of_bodies_from_config(config)
 
-        propagator = nprop.translational_propagator_settings_from_config(
-            config, bodies
-        )
+        propagator = nprop.translational_propagator_settings_from_config(config, bodies)
 
         acceleration_models: dict[str, dict[str, list[AccelerationModel]]] = (
             propagator.accelerations_map
@@ -99,9 +95,7 @@ def accelerations(user_input: AccelerationsInput) -> None:
                     nt.CartesianStateDerivative(
                         *np.array(
                             [
-                                sim.state_derivative_function(
-                                    ttime.Time(ti), si
-                                ).T[0]
+                                sim.state_derivative_function(ttime.Time(ti), si).T[0]
                                 for ti, si in zip(sol.epochs, sol.cstate_j2000)
                             ]
                         ).T

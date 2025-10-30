@@ -1,36 +1,36 @@
-from ...core import SetupBase, SetupCollectionBase
+from ...core import SetupBase
 from pathlib import Path
-from dataclasses import dataclass
+
 from tudatpy.astro import time_representation as ttime
 from .filters import FiltersSetup
 
 
 class ODFSourceSetup(SetupBase):
 
-    path: Path = NotImplemented
-    station: str = NotImplemented
+    path: Path
+    station: str
 
 
 class SourcesSetup(SetupBase):
 
-    ifms: list[Path] = NotImplemented
-    odf: list[ODFSourceSetup] = NotImplemented
+    ifms: list[Path]
+    odf: list[ODFSourceSetup]
 
 
 class UplinkFrequencySetup(SetupBase):
 
-    start: list[ttime.Time] = NotImplemented
-    end: list[ttime.Time] = NotImplemented
-    ref_freq: list[float] = NotImplemented
+    start: list[ttime.Time]
+    end: list[ttime.Time]
+    ref_freq: list[float]
 
 
 class ObservationCompressionSetup(SetupBase):
 
-    integration_time: ttime.Time = NotImplemented
+    present: bool
+    integration_time: ttime.Time
 
 
-@dataclass
-class ClosedLoopObservationsSetup(SetupCollectionBase):
+class ClosedLoopObservationsSetup(SetupBase):
 
     sources: SourcesSetup
     uplink: dict[str, UplinkFrequencySetup]

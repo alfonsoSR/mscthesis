@@ -96,9 +96,7 @@ class ClosedLoopSettingsGenerator(
             # Assign frequency interpolator to the ground station object
             bodies.get("Earth").get_ground_station(
                 station
-            ).set_transmitting_frequency_calculator(
-                station_data.uplink_interpolator
-            )
+            ).set_transmitting_frequency_calculator(station_data.uplink_interpolator)
 
             # Get link definition for current station
             link_definition = link_definitions[station]
@@ -155,9 +153,7 @@ class ClosedLoopSettingsGenerator(
                 compression_ratio=compression_ratio,
             )
 
-        log.info(
-            "Generated observation collection from closed-loop observations"
-        )
+        log.info("Generated observation collection from closed-loop observations")
 
         return observation_collection
 

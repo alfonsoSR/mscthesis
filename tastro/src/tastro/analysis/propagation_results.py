@@ -46,9 +46,7 @@ class ComparisonInputParser(argparse.ArgumentParser):
         )
 
         self.add_argument("-b", "--base", dest="base_dir", default=".")
-        self.add_argument(
-            "-s", dest="save", action="store_true", help="Save figure"
-        )
+        self.add_argument("-s", dest="save", action="store_true", help="Save figure")
         self.add_argument(
             "-x", dest="show", action="store_false", help="Do not show figure"
         )
@@ -73,9 +71,7 @@ class ComparisonInputParser(argparse.ArgumentParser):
             raise FileNotFoundError(f"Invalid current directory: {current_dir}")
         reference_dir: Path = base_dir / defaults.reference
         if not reference_dir.exists():
-            raise FileNotFoundError(
-                f"Invalid reference directory: {reference_dir}"
-            )
+            raise FileNotFoundError(f"Invalid reference directory: {reference_dir}")
 
         # Package output in dataclass
         return ComparisonCommandLineArguments(
@@ -106,9 +102,7 @@ class ResidualInputParser(argparse.ArgumentParser):
             "source_dir", help="Source directory with configuration and results"
         )
 
-        self.add_argument(
-            "-s", dest="save", action="store_true", help="Save figure"
-        )
+        self.add_argument("-s", dest="save", action="store_true", help="Save figure")
 
         self.add_argument(
             "-x", dest="show", action="store_false", help="Do not show figure "
@@ -153,9 +147,7 @@ def compare_propagations() -> None:
     r_rstate = nt.CartesianState(*reference.rstate_j2000.T)
 
     # Define identifiers for reference and current configurations
-    reference_id = comparison_input.reference.relative_to(
-        comparison_input.base_dir
-    )
+    reference_id = comparison_input.reference.relative_to(comparison_input.base_dir)
     current_id = comparison_input.current.relative_to(comparison_input.base_dir)
 
     # Get initial epoch of propagation
@@ -223,9 +215,7 @@ def compare_to_ephemerides_rsw_no_cli(user_input: ResidualCLI) -> None:
     # ).to_iso_string(add_T=True, number_of_digits_seconds=0)
 
     # Get relative path to configuration directory
-    dir_relpath = user_input.source_dir.relative_to(
-        user_input.source_dir.parents[2]
-    )
+    dir_relpath = user_input.source_dir.relative_to(user_input.source_dir.parents[2])
 
     fig_setup = ng.PlotSetup(
         canvas_size=(8, 6),
@@ -312,14 +302,12 @@ def compare_to_ephemerides_j2000_no_cli(user_input: ResidualCLI) -> None:
     dt = (results.epochs - results.epochs[0]) / 3600.0
 
     # Get ISO-T representation of initial epoch
-    initial_epoch_isot = ttime.DateTime.from_epoch(
-        results.epochs[0]
-    ).to_iso_string(add_T=True, number_of_digits_seconds=0)
+    initial_epoch_isot = ttime.DateTime.from_epoch(results.epochs[0]).to_iso_string(
+        add_T=True, number_of_digits_seconds=0
+    )
 
     # Get relative path to configuration directory
-    dir_relpath = user_input.source_dir.relative_to(
-        user_input.source_dir.parents[2]
-    )
+    dir_relpath = user_input.source_dir.relative_to(user_input.source_dir.parents[2])
 
     fig_setup = ng.PlotSetup(
         canvas_size=(12, 6),

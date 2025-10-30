@@ -1,47 +1,50 @@
-from ..core import SetupBase, SetupCollectionBase
-from dataclasses import dataclass
+from ..core import SetupBase
+
 from tudatpy.astro import time_representation as ttime
 
 
 class PlanetEphemeridesSetup(SetupBase):
 
-    model: str = NotImplemented
-    ephemeris_frame_origin: str = NotImplemented
-    ephemeris_frame_orientation: str = NotImplemented
-    interpolation_step: ttime.Time = NotImplemented
-    interpolation_buffer: ttime.Time = NotImplemented
+    present: bool
+    model: str
+    ephemeris_frame_origin: str
+    ephemeris_frame_orientation: str
+    interpolation_step: ttime.Time
+    interpolation_buffer: ttime.Time
 
 
 class PlanetRotationSetup(SetupBase):
 
-    model: str = NotImplemented
-    base_frame: str = NotImplemented
-    target_frame: str | None = NotImplemented
+    present: bool
+    model: str
+    base_frame: str
+    target_frame: str
 
 
 class PlanetShapeSetup(SetupBase):
 
-    model: str = NotImplemented
-    equatorial_radius: float = NotImplemented
-    flattening_factor: float = NotImplemented
+    present: bool
+    model: str
+    equatorial_radius: float
+    flattening_factor: float
 
 
 class PlanetGravitySetup(SetupBase):
 
-    model: str = NotImplemented
-    spherical_harmonics_file: str | None = NotImplemented
-    spherical_harmonics_degree: int | None = NotImplemented
-    spherical_harmonics_order: int | None = NotImplemented
-    spherical_harmonics_frame: str | None = NotImplemented
+    present: bool
+    model: str
+    spherical_harmonics_file: str
+    spherical_harmonics_degree: int
+    spherical_harmonics_order: int
+    spherical_harmonics_frame: str
 
 
 class DirectRadiationSourceSetup(SetupBase):
 
-    luminosity: float = NotImplemented
+    luminosity: float
 
 
-@dataclass
-class PlanetRadiationSourceSetup(SetupCollectionBase):
+class PlanetRadiationSourceSetup(SetupBase):
 
     present: bool
     model: str
@@ -50,23 +53,21 @@ class PlanetRadiationSourceSetup(SetupCollectionBase):
 
 class PlanetExponentialAtmosphereSetup(SetupBase):
 
-    scale_height: float | None = NotImplemented
-    surface_density: float | None = NotImplemented
-    constant_temperature: float | None = NotImplemented
-    specific_gas_constant: float | None = NotImplemented
-    ratio_specific_heats: float | None = NotImplemented
+    scale_height: float
+    surface_density: float
+    constant_temperature: float
+    specific_gas_constant: float
+    ratio_specific_heats: float
 
 
-@dataclass
-class PlanetAtmosphereSetup(SetupCollectionBase):
+class PlanetAtmosphereSetup(SetupBase):
 
     present: bool
     model: str
     exponential_settings: PlanetExponentialAtmosphereSetup
 
 
-@dataclass
-class PlanetSetup(SetupCollectionBase):
+class PlanetSetup(SetupBase):
 
     present: bool
     ephemerides: PlanetEphemeridesSetup

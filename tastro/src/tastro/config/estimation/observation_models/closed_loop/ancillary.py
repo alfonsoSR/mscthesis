@@ -5,8 +5,8 @@ from tudatpy.astro import time_representation as ttime
 
 class DopplerAncillarySettingsSetup(SetupBase):
 
-    uplink_band: tanc.FrequencyBands = NotImplemented
-    downlink_band: tanc.FrequencyBands = NotImplemented
-    reference_band: tanc.FrequencyBands = NotImplemented
-    reference_frequency: float = NotImplemented
-    integration_time: ttime.Time = NotImplemented
+    uplink_band: tanc.FrequencyBands
+    downlink_band: tanc.FrequencyBands
+    reference_band: tanc.FrequencyBands
+    reference_frequency: float
+    integration_time: ttime.Time

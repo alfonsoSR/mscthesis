@@ -1,169 +1,200 @@
-from dataclasses import dataclass
 import typing
 import types
+from tastro.logging import log
+from dataclasses import dataclass
 from tudatpy.astro import time_representation as ttime
-from tudatpy.dynamics.propagation_setup import (
-    integrator as tigrs,
-    propagator as tprops,
-)
-from tudatpy.dynamics.environment_setup import aerodynamic_coefficients as taero
-from tudatpy.estimation.observable_models_setup import (
-    links as tlinks,
-    light_time_corrections as tlight,
-)
-from tudatpy.estimation.observations_setup import ancillary_settings as tanc
 import numpy as np
-from pathlib import Path
+import traceback
 
 
-ENUMERATIONS = (
-    tigrs.CoefficientSets,
-    tprops.TranslationalPropagatorType,
-    tlinks.LinkEndType,
-    tanc.FrequencyBands,
-    tlight.LightTimeFailureHandling,
-    taero.AerodynamicCoefficientFrames,
-)
+class AutoDataclass(type):
+
+    def __new__(mcs, name, bases, attrs):
+
+        cls = super().__new__(mcs, name, bases, attrs)
+
+        return dataclass(cls)  # type: ignore
 
 
-@dataclass
-class SetupBase:
+class SetupBase(metaclass=AutoDataclass):
 
-    _raw: dict[str, typing.Any]
-    present: bool
+    @staticmethod
+    def __type_is_enumeration(_type) -> bool:
 
-    @classmethod
-    def from_raw(cls, raw_config: dict[str, typing.Any]) -> "typing.Self":
+        # Ensure __members__ is present
+        if not hasattr(_type, "__members__"):
+            return False
 
-        present = True
-        if "present" in raw_config:
-            present = raw_config["present"]
+        # Get first item in __members__
+        member = list(getattr(_type, "__members__").values())[0]
 
-        return cls(raw_config, present)
+        # If not of the same type as _type, not an enumeration
+        if not isinstance(member, _type):
+            return False
 
-    def __getattribute__(self, name: str) -> typing.Any:
+        log.debug(f"IS AN ENUMERATION: {_type}")
 
-        if (name not in SetupBase.__annotations__) and (
-            name not in dir(SetupBase)
-        ):
-            raise AttributeError(f"Invalid argument {name}")
-
-        return super().__getattribute__(name)
-
-    def __getattr__(self, name: str) -> typing.Any:
-
-        if name not in type(self).__annotations__:
-            raise AttributeError(
-                f"Invalid attribute {name} for {self.__class__.__name__}"
-            )
-
-        _raw = super().__getattribute__("_raw")
-        if name not in _raw:
-            raise AttributeError(f"Invalid attribute {name}")
-
-        # Get type
-        __type = type(self).__annotations__[name]
-        if isinstance(__type, types.UnionType):
-
-            valid = (len(__type.__args__) == 2) and (
-                (__type.__args__[-1] is types.NoneType)
-            )
-            if not valid:
-                raise ValueError(f"Invalid union type: {__type}: {name}")
-
-            if _raw[name] is None:
-                return None
-
-            __type = __type.__args__[0]
-
-        if _raw[name] is None:
-            raise ValueError(f"{name} not set for {self.__class__.__name__}")
-
-        if __type is ttime.Time and isinstance(_raw[name], str):
-            return ttime.DateTime.from_iso_string(
-                _raw[name]
-            ).to_epoch_time_object()
-
-        if __type in ENUMERATIONS and isinstance(_raw[name], str):
-            return getattr(__type, _raw[name])
-
-        if __type is np.ndarray and isinstance(_raw[name], list):
-            return np.array(_raw[name])
-
-        if isinstance(__type, types.GenericAlias):
-            if isinstance(_raw[name], list):
-
-                __item_type = __type.__args__[0]
-                if hasattr(__item_type, "from_raw"):
-                    return [
-                        getattr(__item_type, "from_raw")(item)
-                        for item in _raw[name]
-                    ]
-                else:
-                    if __item_type == ttime.Time and isinstance(
-                        _raw[name][0], str
-                    ):
-                        return [
-                            ttime.DateTime.from_iso_string(
-                                item
-                            ).to_epoch_time_object()
-                            for item in _raw[name]
-                        ]
-                    else:
-                        return [__item_type(item) for item in _raw[name]]
-
-            else:
-                raise NotImplementedError(
-                    f"Not implemented generic alias: {__type}"
-                )
-
-        return __type(_raw[name])
-
-
-@dataclass
-class SetupCollectionBase:
+        return True
 
     @classmethod
-    def from_raw(
-        cls, raw_settings: dict[str, dict[str, typing.Any]]
-    ) -> "typing.Self":
+    def __process_single_attribute(cls, name: str, target_type, value):
 
-        arguments = {}
-        for raw_name, raw_val in raw_settings.items():
+        # Initialize from raw if possible
+        if hasattr(target_type, "from_raw"):
+            log.debug(f"Initializing from raw: {name} - {target_type}")
+            return getattr(target_type, "from_raw")(value)
 
-            argname = raw_name.lower()
-            if argname not in cls.__annotations__:
-                raise AttributeError(
-                    f"Invalid attribute {argname} for {cls.__name__}"
+        # Avoid casting None when a parameter is not set
+        if value is None:
+            return value
+
+        # Handle casting of ISO string epoch to Time object
+        if (target_type is ttime.Time) and isinstance(value, str):
+            log.debug(f"Casting ISO string to Time object: {name} - {target_type}")
+            return ttime.DateTime.from_iso_string(value).to_epoch_time_object()
+
+        # Handle enumerations
+        if cls.__type_is_enumeration(target_type):
+            log.debug(f"Initializing enumeration: {name} - {target_type}")
+
+            # Fail if value is not an option
+            if value not in getattr(target_type, "__members__"):
+                log.error(f"Invalid option {value} for enumeration {target_type}")
+                exit(1)
+
+            return getattr(target_type, value)
+
+        # Handle numpy arrays
+        if (target_type is np.ndarray) and isinstance(value, list):
+            log.debug(f"Initializing numpy array: {name} - {target_type}")
+            return np.array(value)
+
+        # Otherwise, initialize with constructor
+        log.debug(f"Initializing from constructor: {name} - {target_type}")
+        return target_type(value)
+
+    @classmethod
+    def __process_attribute(cls, name: str, value: typing.Any):
+
+        # Get type of attribute from annonation
+        argtype = cls.__annotations__[name]
+
+        # Check if the attribute is a value, or a collection of values
+        if not isinstance(argtype, types.GenericAlias):
+
+            return cls.__process_single_attribute(name, argtype, value)
+
+        # Process dictionary of values
+        if isinstance(value, dict):
+
+            # Get desired type for values
+            __value_type = argtype.__args__[-1]
+
+            # Generate dictionary with processed single values
+            return {
+                key: cls.__process_single_attribute(key, __value_type, _val)
+                for key, _val in value.items()
+            }
+
+        # Process list of values
+        if isinstance(value, list):
+
+            # Get desired type for values
+            __value_type = argtype.__args__[0]
+
+            # Generate list with processed single values
+            return [
+                cls.__process_single_attribute(
+                    f"Item {idx} of {name}", __value_type, item
                 )
-            argtype = cls.__annotations__[argname]
+                for idx, item in enumerate(value)
+            ]
 
-            if isinstance(argtype, types.GenericAlias):
+        # Take care of errors in __process_single_attribute
+        return cls.__process_single_attribute(name, argtype, value)
 
-                # Identification flags
-                is_dict = (len(argtype.__args__) == 2) and (
-                    argtype.__args__[0] is str
-                )
-                is_list = len(argtype.__args__) == 1
-                if is_dict:
-                    arguments[argname] = {
-                        key: getattr(argtype.__args__[-1], "from_raw")(val)
-                        for key, val in raw_val.items()
-                    }
-                elif is_list:
-                    arguments[argname] = [
-                        getattr(argtype.__args__[0], "from_raw")(val)
-                        for val in raw_val
-                    ]
-                else:
-                    raise NotImplementedError(
-                        f"Invalid generic alias: {argtype}"
+    @classmethod
+    def from_raw(cls, raw_configuration: dict[str, typing.Any] | None) -> "typing.Self":
+
+        # Initialize dictionary with arguments of the class
+        kwargs: dict[str, typing.Any] = {}
+
+        # If raw configuration is dictionary, initialize based on it
+        if isinstance(raw_configuration, dict):
+
+            for raw_key, raw_value in raw_configuration.items():
+
+                # Make key lowercase
+                argname: str = raw_key.lower()
+
+                # Ignore item if data structure is not available
+                if argname not in cls.__annotations__:
+                    log.warning(
+                        f"Ignoring attribute {argname} of {cls.__name__}"
+                        f" :: Data structure is not available"
                     )
+                    continue
+
+                # Process item
+                kwargs[argname] = cls.__process_attribute(argname, raw_value)
+
+        # Handle case in which section is missing from configuration file
+        elif raw_configuration is None:
+
+            # Try to mark as not present (all fields will be None)
+            if "present" in getattr(cls, "__dataclass_fields__"):
+                kwargs["present"] = False
             else:
+                log.fatal(
+                    "Missing field in configuration could not be marked "
+                    "as not present"
+                )
+                exit(1)
 
-                if hasattr(argtype, "from_raw"):
-                    arguments[argname] = getattr(argtype, "from_raw")(raw_val)
-                else:
-                    arguments[argname] = argtype(raw_val)
+        else:
 
-        return cls(**arguments)
+            log.fatal(f"Invalid type for raw_configuration: {type(raw_configuration)}")
+            exit(1)
+
+        # Fill missing arguments setting them to None
+        for expected_kwarg in cls.__annotations__:
+
+            # Identify missing arguments for class constructor
+            if expected_kwarg not in kwargs:
+
+                # Get expected type of argument
+                expected_type = cls.__annotations__[expected_kwarg]
+
+                # If the expected type has from_raw, process
+                if hasattr(expected_type, "from_raw"):
+                    kwargs[expected_kwarg] = getattr(expected_type, "from_raw")(None)
+                    continue
+
+                # If argument has a default value, use default
+                if expected_kwarg in cls.__dict__:
+                    continue
+
+                # Set argument to None and raise warning
+                log.warning(f"Setting {expected_kwarg} to None : {cls}")
+                kwargs[expected_kwarg] = None
+
+        return cls(**kwargs)
+
+    def __getattribute__(self, name: str):
+
+        # Use method of base class to get value of argument
+        value = super().__getattribute__(name)
+
+        # Indicates that argument is missing/not set in configuration file
+        if value is None:
+
+            out = traceback.extract_stack()
+
+            log.error(
+                f"Parameter {name} not set in configuration file"
+                f" :: {self.__class__.__name__}"
+            )
+            log.error(f"Source :: {out[-2]}")
+            exit(1)
+
+        return value

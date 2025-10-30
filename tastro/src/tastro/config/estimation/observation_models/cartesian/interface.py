@@ -1,17 +1,15 @@
 from ..links import LinkEndSetup
-from dataclasses import dataclass
-from ....core import SetupCollectionBase
+
+from ....core import SetupBase
 
 
-@dataclass
-class CartesianLinkDefinitionSetup(SetupCollectionBase):
+class CartesianLinkDefinitionSetup(SetupBase):
 
     observer: LinkEndSetup
     observed_body: LinkEndSetup
 
 
-@dataclass
-class CartesianSetup(SetupCollectionBase):
+class CartesianSetup(SetupBase):
 
     present: bool
     link_definitions: dict[str, CartesianLinkDefinitionSetup]

@@ -1,5 +1,4 @@
-from ..core import SetupBase, SetupCollectionBase
-from dataclasses import dataclass
+from ..core import SetupBase
 from .planets import PlanetSetup
 from .stations import StationSetup
 from .vehicles import VehicleSetup
@@ -7,14 +6,13 @@ from .vehicles import VehicleSetup
 
 class EnvironmentGeneralSetup(SetupBase):
 
-    global_frame_origin: str = NotImplemented
-    global_frame_orientation: str = NotImplemented
-    spacecraft: str = NotImplemented
-    center: str = NotImplemented
+    global_frame_origin: str
+    global_frame_orientation: str
+    spacecraft: str
+    center: str
 
 
-@dataclass
-class EnvironmentSetup(SetupCollectionBase):
+class EnvironmentSetup(SetupBase):
 
     general: EnvironmentGeneralSetup
     planets: dict[str, PlanetSetup]

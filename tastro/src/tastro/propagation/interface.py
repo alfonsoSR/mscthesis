@@ -25,9 +25,7 @@ def translational_propagator_settings_from_config(
     log.debug(f"Center :: {config.environment.general.center}")
     log.debug(
         "State representation :: "
-        + str(config.propagation.integrator.general.state_representation).split(
-            "."
-        )[-1]
+        + str(config.propagation.integrator.general.state_representation).split(".")[-1]
     )
 
     # Initialize settings generator

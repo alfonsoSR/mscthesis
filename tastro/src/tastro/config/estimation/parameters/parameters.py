@@ -1,9 +1,8 @@
-from ...core import SetupBase, SetupCollectionBase
-from dataclasses import dataclass
+from ...core import SetupBase
 
 
 class ParametersSetup(SetupBase):
 
-    initial_states: bool = NotImplemented
-    drag_coefficient: bool = NotImplemented
-    radiation_pressure_coefficient: bool = NotImplemented
+    initial_states: bool
+    drag_coefficient: bool
+    radiation_pressure_coefficient: bool

@@ -29,9 +29,7 @@ class ResidualInputParser(argparse.ArgumentParser):
             "source_dir", help="Source directory with configuration and results"
         )
 
-        self.add_argument(
-            "-s", dest="save", action="store_true", help="Save figure"
-        )
+        self.add_argument("-s", dest="save", action="store_true", help="Save figure")
 
         self.add_argument(
             "-x", dest="show", action="store_false", help="Do not show figure "
@@ -65,9 +63,7 @@ def show_residual_history() -> None:
 def show_residual_history_no_cli(user_input: ResidualCLI) -> None:
 
     # user_input = ResidualInputParser().parse_args()
-    config = CaseSetup.from_config_file(
-        user_input.source_dir / "configuration.yaml"
-    )
+    config = CaseSetup.from_config_file(user_input.source_dir / "configuration.yaml")
 
     # if (
     #     config.estimation.parameters.drag_coefficient
@@ -77,9 +73,7 @@ def show_residual_history_no_cli(user_input: ResidualCLI) -> None:
     #         "Incompatible with estimation of anything not initial states"
     #     )
 
-    estimation = EstimationResults.from_file(
-        user_input.source_dir / "estimation.pkl"
-    )
+    estimation = EstimationResults.from_file(user_input.source_dir / "estimation.pkl")
     propagation = PropagationOutput.from_config_file(
         user_input.source_dir / "configuration.yaml"
     )
@@ -87,9 +81,7 @@ def show_residual_history_no_cli(user_input: ResidualCLI) -> None:
     # Ephemerides
     rstate = nt.CartesianState(*propagation.rstate_j2000.T)
 
-    dir_name = user_input.source_dir.relative_to(
-        user_input.source_dir.parents[2]
-    )
+    dir_name = user_input.source_dir.relative_to(user_input.source_dir.parents[2])
 
     match config.propagation.integrator.general.starting_point:
 
@@ -100,9 +92,7 @@ def show_residual_history_no_cli(user_input: ResidualCLI) -> None:
         case "middle":
             ref_epoch = propagation.epochs[len(propagation.epochs) // 2]
         case "custom":
-            _ref_epoch = (
-                config.propagation.integrator.general.custom_start_epoch
-            )
+            _ref_epoch = config.propagation.integrator.general.custom_start_epoch
             assert _ref_epoch is not None
             ref_epoch = _ref_epoch.to_float()
         case _:
@@ -133,9 +123,7 @@ def show_residual_history_no_cli(user_input: ResidualCLI) -> None:
         cfigs = []
         for _label in ("x", "y", "z"):
 
-            _setup = subfig_setup.version(
-                ylabel=(r"$\Delta " + _label + "$ [m]")
-            )
+            _setup = subfig_setup.version(ylabel=(r"$\Delta " + _label + "$ [m]"))
             cfigs.append(canvas.subplot(_setup, generator=ng.DoubleAxis))
 
         rsetup = subfig_setup.version(ylabel=r"$||\Delta \mathbf{r}||$ [m]")
@@ -186,13 +174,9 @@ def show_residual_history_no_cli(user_input: ResidualCLI) -> None:
 def show_doppler_residual_history_no_cli(user_input: ResidualCLI) -> None:
 
     # user_input = ResidualInputParser().parse_args()
-    config = CaseSetup.from_config_file(
-        user_input.source_dir / "configuration.yaml"
-    )
+    config = CaseSetup.from_config_file(user_input.source_dir / "configuration.yaml")
 
-    estimation = EstimationResults.from_file(
-        user_input.source_dir / "estimation.pkl"
-    )
+    estimation = EstimationResults.from_file(user_input.source_dir / "estimation.pkl")
     propagation = PropagationOutput.from_config_file(
         user_input.source_dir / "configuration.yaml"
     )
@@ -206,9 +190,7 @@ def show_doppler_residual_history_no_cli(user_input: ResidualCLI) -> None:
     assert isinstance(epochs, np.ndarray)
     assert isinstance(epochs[0], float)
 
-    dir_name = user_input.source_dir.relative_to(
-        user_input.source_dir.parents[2]
-    )
+    dir_name = user_input.source_dir.relative_to(user_input.source_dir.parents[2])
 
     t0 = get_propagation_start_epoch_from_config(config)
     t0_iso = ttime.DateTime.from_epoch_time_object(t0).to_iso_string(
@@ -217,9 +199,7 @@ def show_doppler_residual_history_no_cli(user_input: ResidualCLI) -> None:
     dt = (epochs - t0.to_float()) / 3600.0
 
     # Load pre-fit residuals
-    prefit = PrefitResults.from_file(
-        user_input.source_dir / "prefit_results.pkl"
-    )
+    prefit = PrefitResults.from_file(user_input.source_dir / "prefit_results.pkl")
 
     # # Get reference from configuration
     # ref = f"Ref: {config.estimation.observations.cartesian.sources[0].path.parent.name}"

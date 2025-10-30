@@ -27,9 +27,7 @@ class PlanetSettings(SettingsGenerator[PlanetSetup]):
         # Define frame orientation
         frame_orientation = self.local.ephemerides.ephemeris_frame_orientation
         if frame_orientation == "global":
-            frame_orientation = (
-                self.config.environment.general.global_frame_orientation
-            )
+            frame_orientation = self.config.environment.general.global_frame_orientation
 
         match self.local.ephemerides.model:
 
@@ -50,19 +48,15 @@ class PlanetSettings(SettingsGenerator[PlanetSetup]):
                     raise ValueError("Interpolation step is not defined")
 
                 # Ensure interpolation buffer is defined
-                interpolation_buffer = (
-                    self.local.ephemerides.interpolation_buffer
-                )
+                interpolation_buffer = self.local.ephemerides.interpolation_buffer
                 if interpolation_buffer is None:
                     raise ValueError("Interpolation buffer not defined")
 
                 return tephs.interpolated_spice(
                     frame_origin=frame_origin,
                     frame_orientation=frame_orientation,
-                    initial_time=self.config.time.initial_epoch
-                    - interpolation_buffer,
-                    final_time=self.config.time.final_epoch
-                    + interpolation_buffer,
+                    initial_time=self.config.time.initial_epoch - interpolation_buffer,
+                    final_time=self.config.time.final_epoch + interpolation_buffer,
                     time_step=interpolation_step,
                 )
 
@@ -84,9 +78,7 @@ class PlanetSettings(SettingsGenerator[PlanetSetup]):
                     raise ValueError("Interpolation step is not defined")
 
                 # Ensure interpolation buffer is defined
-                interpolation_buffer = (
-                    self.local.ephemerides.interpolation_buffer
-                )
+                interpolation_buffer = self.local.ephemerides.interpolation_buffer
                 if interpolation_buffer is None:
                     raise ValueError("Interpolation buffer not defined")
 
@@ -120,25 +112,16 @@ class PlanetSettings(SettingsGenerator[PlanetSetup]):
         # Define base and target frames
         base_frame = self.local.rotation.base_frame
         if base_frame == "global":
-            base_frame = (
-                self.config.environment.general.global_frame_orientation
-            )
-        target_frame = self.local.rotation.target_frame
+            base_frame = self.config.environment.general.global_frame_orientation
 
         match self.local.rotation.model:
 
             case "spice":
 
                 log.debug("Spice rotation settings")
-                # Ensure target frame is set
-                if target_frame is None:
-                    raise ValueError(
-                        f"Target frame not set with spice rotation model: {self.name}"
-                    )
-
                 return trots.spice(
                     base_frame=base_frame,
-                    target_frame=target_frame,
+                    target_frame=self.local.rotation.target_frame,
                 )
 
             case "precise":
@@ -164,20 +147,20 @@ class PlanetSettings(SettingsGenerator[PlanetSetup]):
                         eop_buffer = eop_interpolation_step * 4
 
                         # Define settings for interpolators
-                        cio_and_tdb_interp_settings = tint.InterpolatorGenerationSettings(
-                            interpolator_settings=tint.cubic_spline_interpolation(),
-                            initial_time=self.config.time.initial_epoch
-                            - cio_tdb_buffer,
-                            final_time=self.config.time.final_epoch
-                            + cio_tdb_buffer,
-                            time_step=cio_tdb_interpolation_step,
+                        cio_and_tdb_interp_settings = (
+                            tint.InterpolatorGenerationSettings(
+                                interpolator_settings=tint.cubic_spline_interpolation(),
+                                initial_time=self.config.time.initial_epoch
+                                - cio_tdb_buffer,
+                                final_time=self.config.time.final_epoch
+                                + cio_tdb_buffer,
+                                time_step=cio_tdb_interpolation_step,
+                            )
                         )
                         eop_interp_settings = tint.InterpolatorGenerationSettings(
                             interpolator_settings=tint.cubic_spline_interpolation(),
-                            initial_time=self.config.time.initial_epoch
-                            - eop_buffer,
-                            final_time=self.config.time.final_epoch
-                            + eop_buffer,
+                            initial_time=self.config.time.initial_epoch - eop_buffer,
+                            final_time=self.config.time.final_epoch + eop_buffer,
                             time_step=eop_interpolation_step,
                         )
 
@@ -197,9 +180,7 @@ class PlanetSettings(SettingsGenerator[PlanetSetup]):
                         )
 
             case _:
-                raise ValueError(
-                    f"Invalid rotation model: {self.local.rotation.model}"
-                )
+                raise ValueError(f"Invalid rotation model: {self.local.rotation.model}")
 
     def shape_settings(self) -> tshapes.BodyShapeSettings:
 
@@ -219,9 +200,7 @@ class PlanetSettings(SettingsGenerator[PlanetSetup]):
                         "Missing equatorial radius"
                     )
 
-                return tshapes.spherical(
-                    radius=self.local.shape.equatorial_radius
-                )
+                return tshapes.spherical(radius=self.local.shape.equatorial_radius)
 
             case "ellipsoid":
                 log.debug("Ellipsoid shape settings")
@@ -283,8 +262,7 @@ class PlanetSettings(SettingsGenerator[PlanetSetup]):
                 sh_frame = self.local.gravity.spherical_harmonics_frame
                 if sh_frame is None:
                     raise ValueError(
-                        "Missing frame for spherical harmonics model "
-                        f"of {self.name}"
+                        "Missing frame for spherical harmonics model " f"of {self.name}"
                     )
 
                 # Get path to spherical harmonics gravity field model
@@ -332,9 +310,7 @@ class PlanetSettings(SettingsGenerator[PlanetSetup]):
                 # Define settings for luminosity model
                 luminosity = self.local.radiation.direct_setup.luminosity
                 if luminosity is None:
-                    raise ValueError(
-                        "Missing luminosity for direct radiation source"
-                    )
+                    raise ValueError("Missing luminosity for direct radiation source")
                 luminosity_settings = trad.constant_luminosity(luminosity)
 
                 # Return isotropic source settings
@@ -354,9 +330,7 @@ class PlanetSettings(SettingsGenerator[PlanetSetup]):
                 log.debug(f"Exponential atmosphere")
 
                 # Ensure settings for exponential atmosphere are available
-                scale_height = (
-                    self.local.atmosphere.exponential_settings.scale_height
-                )
+                scale_height = self.local.atmosphere.exponential_settings.scale_height
                 if scale_height is None:
                     raise ValueError(
                         "Missing scale height for exponential atmosphere of "

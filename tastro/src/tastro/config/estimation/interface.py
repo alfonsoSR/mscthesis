@@ -1,13 +1,12 @@
-from ..core import SetupCollectionBase
-from dataclasses import dataclass
+from ..core import SetupBase
+
 from .observation_models import ObservationModelSetup
 from .observations import ObservationsSetup
 from .light_propagation import LightTimeSetup
 from .parameters import ParametersSetup
 
 
-@dataclass
-class EstimationSetup(SetupCollectionBase):
+class EstimationSetup(SetupBase):
 
     light_propagation: LightTimeSetup
     observation_models: ObservationModelSetup

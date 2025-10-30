@@ -1,5 +1,5 @@
-from .core import SetupCollectionBase, SetupBase
-from dataclasses import dataclass
+from .core import SetupBase
+
 from .environment import EnvironmentSetup
 from .propagation import PropagationSetup
 from .estimation import EstimationSetup
@@ -14,12 +14,11 @@ if typing.TYPE_CHECKING:
 
 class SimulationIntervalSetup(SetupBase):
 
-    initial_epoch: ttime.Time = NotImplemented
-    final_epoch: ttime.Time = NotImplemented
+    initial_epoch: ttime.Time
+    final_epoch: ttime.Time
 
 
-@dataclass
-class CaseSetup(SetupCollectionBase):
+class CaseSetup(SetupBase):
 
     time: SimulationIntervalSetup
     environment: EnvironmentSetup

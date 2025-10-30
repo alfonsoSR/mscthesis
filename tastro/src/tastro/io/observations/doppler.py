@@ -32,9 +32,7 @@ def get_ground_station_reference_state_itrf(
             return np.array([*xpos, *xvel])
 
         case _:
-            raise NotImplementedError(
-                f"Invalid type of available position: {source}"
-            )
+            raise NotImplementedError(f"Invalid type of available position: {source}")
 
 
 def get_metadata_from_ifms_filename(source_file: Path) -> dict[str, str]:
@@ -56,10 +54,7 @@ def get_metadata_from_ifms_filename(source_file: Path) -> dict[str, str]:
 def sort_ifms_files_by_epoch(ifms_list: list[Path]) -> list[Path]:
 
     mask = np.argsort(
-        [
-            int(get_metadata_from_ifms_filename(file)["ref_epoch"])
-            for file in ifms_list
-        ]
+        [int(get_metadata_from_ifms_filename(file)["ref_epoch"]) for file in ifms_list]
     )
     return [ifms_list[idx] for idx in mask]
 
@@ -97,9 +92,7 @@ def _define_odf_reference_epoch_from_header(
         raise NotImplementedError("ODF reference epoch is not EME50")
 
     # Return reference epoch as time object
-    return ttime.DateTime.from_iso_string(
-        "1950-01-01T00:00:00"
-    ).to_epoch_time_object()
+    return ttime.DateTime.from_iso_string("1950-01-01T00:00:00").to_epoch_time_object()
 
 
 def _get_turnaround_ratio_for_odf_block(
@@ -166,18 +159,13 @@ class RawDopplerObservationRecord(dict[ttime.Time, float]):
 
         # Load observation epochs and values
         observation_epochs = np.array(
-            [
-                ttime.Time(float(epoch))
-                for epoch in raw_data["tdb_seconds_since_j2000"]
-            ]
+            [ttime.Time(float(epoch)) for epoch in raw_data["tdb_seconds_since_j2000"]]
         )
         observation_values = np.array(
             raw_data["doppler_averaged_frequency_hz"], dtype=float
         )
 
-        return RawDopplerObservationRecord(
-            observation_epochs, observation_values
-        )
+        return RawDopplerObservationRecord(observation_epochs, observation_values)
 
     @staticmethod
     def from_odf_file(
@@ -299,9 +287,7 @@ class DopplerObservationRecord:
         config: CaseSetup,
     ) -> "DopplerObservationRecord":
 
-        uplink_config = config.estimation.observations.closed_loop.uplink[
-            station
-        ]
+        uplink_config = config.estimation.observations.closed_loop.uplink[station]
 
         return DopplerObservationRecord(
             epochs=epochs,
@@ -319,9 +305,7 @@ class DopplerObservationRecord:
         config: CaseSetup,
     ) -> "DopplerObservationRecord":
 
-        uplink_config = config.estimation.observations.closed_loop.uplink[
-            station
-        ]
+        uplink_config = config.estimation.observations.closed_loop.uplink[station]
 
         return DopplerObservationRecord(
             epochs=raw_record.epochs,

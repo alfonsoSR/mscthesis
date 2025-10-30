@@ -1,25 +1,24 @@
-from ...core import SetupBase, SetupCollectionBase
-from dataclasses import dataclass
+from ...core import SetupBase
+
 from tudatpy.astro import time_representation as ttime
 
 
 class AbsoluteFilterSetup(SetupBase):
 
-    value: float = NotImplemented
-    filter_out: bool = NotImplemented
-    use_opposite: bool = NotImplemented
+    value: float
+    filter_out: bool
+    use_opposite: bool
 
 
 class BetweenEpochsFilterSetup(SetupBase):
 
-    first_epoch: ttime.Time = NotImplemented
-    second_epoch: ttime.Time = NotImplemented
-    filter_out: bool = NotImplemented
-    use_opposite: bool = NotImplemented
+    first_epoch: ttime.Time
+    second_epoch: ttime.Time
+    filter_out: bool
+    use_opposite: bool
 
 
-@dataclass
-class FiltersSetup(SetupCollectionBase):
+class FiltersSetup(SetupBase):
 
     present: bool
     absolute_value: list[AbsoluteFilterSetup]

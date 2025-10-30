@@ -1,33 +1,34 @@
-from ..core import SetupBase, SetupCollectionBase
+from ..core import SetupBase
 from tudatpy.astro import time_representation as ttime
-from dataclasses import dataclass
+
 from tudatpy.dynamics.environment_setup import aerodynamic_coefficients as taero
 
 
 class VehicleEphemerisSetup(SetupBase):
 
-    model: str = NotImplemented
-    ephemeris_frame_origin: str = NotImplemented
-    ephemeris_frame_orientation: str = NotImplemented
-    interpolation_step: ttime.Time | None = NotImplemented
-    interpolation_buffer: ttime.Time | None = NotImplemented
+    present: bool
+    model: str
+    ephemeris_frame_origin: str
+    ephemeris_frame_orientation: str
+    interpolation_step: ttime.Time
+    interpolation_buffer: ttime.Time
 
 
 class VehicleRotationSetup(SetupBase):
 
-    model: str = NotImplemented
-    base_frame: str = NotImplemented
-    target_frame: str = NotImplemented
+    present: bool
+    model: str
+    base_frame: str
+    target_frame: str
 
 
 class CannonballRadiationTargetSetup(SetupBase):
 
-    reference_area: float | None = NotImplemented
-    radiation_pressure_coefficient: float | None = NotImplemented
+    reference_area: float
+    radiation_pressure_coefficient: float
 
 
-@dataclass
-class VehicleRadiationTargetSetup(SetupCollectionBase):
+class VehicleRadiationTargetSetup(SetupBase):
 
     present: bool
     model: str
@@ -36,33 +37,33 @@ class VehicleRadiationTargetSetup(SetupCollectionBase):
 
 class VehicleSystemsSetup(SetupBase):
 
-    turnaround_ratio: str = NotImplemented
-    reference_point: str = NotImplemented
-    mass: float | None = NotImplemented
+    present: bool
+    turnaround_ratio: str
+    reference_point: str
+    mass: float
 
 
 class VehicleShapeSetup(SetupBase):
 
-    model: str = NotImplemented
+    present: bool
+    model: str
 
 
 class CannonballAerodynamicsSetup(SetupBase):
 
-    reference_area: float = NotImplemented
-    force_coefficients: list[float] = NotImplemented
-    coefficient_frame: taero.AerodynamicCoefficientFrames = NotImplemented
+    reference_area: float
+    force_coefficients: list[float]
+    coefficient_frame: taero.AerodynamicCoefficientFrames
 
 
-@dataclass
-class VehicleAerodynamicSetup(SetupCollectionBase):
+class VehicleAerodynamicSetup(SetupBase):
 
     present: bool
     model: str
     cannonball_settings: CannonballAerodynamicsSetup
 
 
-@dataclass
-class VehicleSetup(SetupCollectionBase):
+class VehicleSetup(SetupBase):
 
     present: bool
     ephemerides: VehicleEphemerisSetup

@@ -1,11 +1,10 @@
-from ...core import SetupCollectionBase
-from dataclasses import dataclass
+from ...core import SetupBase
+
 from .convergence import LightTimeConvergence
 from .corrections import LightTimeCorrectionsSetup
 
 
-@dataclass
-class LightTimeSetup(SetupCollectionBase):
+class LightTimeSetup(SetupBase):
 
     corrections: LightTimeCorrectionsSetup
     convergence: LightTimeConvergence

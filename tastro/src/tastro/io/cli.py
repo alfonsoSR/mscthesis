@@ -19,9 +19,7 @@ class UserInputParser(argparse.ArgumentParser):
 
         super().__init__()
 
-        self.add_argument(
-            "configuration_dir", help="Path to configuration file"
-        )
+        self.add_argument("configuration_dir", help="Path to configuration file")
         self.add_argument("-p", dest="propagate", action="store_true")
         self.add_argument("-e", dest="estimate", action="store_true")
         self.add_argument("-a", dest="accelerations", action="store_true")
@@ -34,9 +32,7 @@ class UserInputParser(argparse.ArgumentParser):
         defaults = super().parse_args()
 
         # Verify path to configuration file
-        config_path = (
-            Path(defaults.configuration_dir).absolute() / "configuration.yaml"
-        )
+        config_path = Path(defaults.configuration_dir).absolute() / "configuration.yaml"
         if not config_path.exists():
             raise FileNotFoundError(
                 f"Invalid configuration directory: {defaults.configuration_file}"

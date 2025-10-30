@@ -1,9 +1,9 @@
-from ...core import SetupBase, SetupCollectionBase
-from dataclasses import dataclass
+from ...core import SetupBase
+
 from tudatpy.estimation.observable_models_setup import links as tlinks
 
 
 class LinkEndSetup(SetupBase):
 
-    body: str = NotImplemented
-    reference_point: str = NotImplemented
+    body: str
+    reference_point: str

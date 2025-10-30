@@ -1,26 +1,24 @@
-from ..core import SetupBase, SetupCollectionBase
-from dataclasses import dataclass
+from ..core import SetupBase
 from tudatpy.astro import time_representation as ttime
 
 
 class StationCoordinatesSetup(SetupBase):
 
-    reference_epoch: ttime.Time = NotImplemented
-    available_position: str = NotImplemented
-    itrf_version: str = NotImplemented
-    linear_motion: bool = NotImplemented
-    body_deformation: bool = NotImplemented
+    reference_epoch: ttime.Time
+    available_position: str
+    itrf_version: str
+    linear_motion: bool
+    body_deformation: bool
 
 
 class StationLightTimeCorrectionsSetup(SetupBase):
 
-    tropospheric_correction: bool = NotImplemented
-    ionospheric_correction: bool = NotImplemented
-    relativistic_correction: bool = NotImplemented
+    tropospheric_correction: bool
+    ionospheric_correction: bool
+    relativistic_correction: bool
 
 
-@dataclass
-class StationSetup(SetupCollectionBase):
+class StationSetup(SetupBase):
 
     present: bool
     coordinates: StationCoordinatesSetup

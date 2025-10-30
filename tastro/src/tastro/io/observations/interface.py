@@ -58,12 +58,8 @@ def load_doppler_observations_from_config(
     output: dict[str, DopplerObservationRecord] = {}
     for station, station_data in observations_per_station.items():
 
-        epochs = np.concatenate(
-            [item.epochs for item in station_data]
-        ).flatten()
-        values = np.concatenate(
-            [item.observations for item in station_data]
-        ).flatten()
+        epochs = np.concatenate([item.epochs for item in station_data]).flatten()
+        values = np.concatenate([item.observations for item in station_data]).flatten()
 
         output[station] = DopplerObservationRecord.from_config(
             epochs, values, station, config

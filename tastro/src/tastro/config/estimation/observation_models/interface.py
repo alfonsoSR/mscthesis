@@ -1,11 +1,9 @@
 from .closed_loop import ClosedLoopDopplerSetup
 from .cartesian import CartesianSetup
-from ...core import SetupCollectionBase
-from dataclasses import dataclass
+from ...core import SetupBase
 
 
-@dataclass
-class ObservationModelSetup(SetupCollectionBase):
+class ObservationModelSetup(SetupBase):
 
     closed_loop: ClosedLoopDopplerSetup
     cartesian: CartesianSetup

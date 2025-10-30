@@ -1,40 +1,45 @@
-from ..core import SetupBase, SetupCollectionBase
-from dataclasses import dataclass
+from ..core import SetupBase
 
 
 class AccelerationGravitationalSetup(SetupBase):
-    pass
+
+    present: bool
 
 
 class AccelerationAerodynamicSetup(SetupBase):
-    pass
+
+    present: bool
 
 
 class AccelerationRadiationSetup(SetupBase):
 
-    occulting_bodies: list[str] | None = NotImplemented
+    present: bool
+    occulting_bodies: list[str]
 
 
 class AccelerationRelativisticSetup(SetupBase):
 
-    use_karl: bool = NotImplemented
-    use_lense: bool = NotImplemented
+    present: bool
+    use_karl: bool
+    use_lense: bool
 
 
 class AccelerationThrustSetup(SetupBase):
-    pass
+
+    present: bool
 
 
 class AccelerationImpulsiveSetup(SetupBase):
-    pass
+
+    present: bool
 
 
 class AccelerationEmpiricalSetup(SetupBase):
-    pass
+
+    present: bool
 
 
-@dataclass
-class PlanetAccelerationsSetup(SetupCollectionBase):
+class PlanetAccelerationsSetup(SetupBase):
 
     gravitational: AccelerationGravitationalSetup
     aerodynamic: AccelerationAerodynamicSetup
@@ -42,16 +47,14 @@ class PlanetAccelerationsSetup(SetupCollectionBase):
     relativistic: AccelerationRelativisticSetup
 
 
-@dataclass
-class VehicleAccelerationsSetup(SetupCollectionBase):
+class VehicleAccelerationsSetup(SetupBase):
 
     thrust: AccelerationThrustSetup
     impulsive: AccelerationImpulsiveSetup
     empirical: AccelerationEmpiricalSetup
 
 
-@dataclass
-class TargetAccelerationSetup(SetupCollectionBase):
+class TargetAccelerationSetup(SetupBase):
 
     external: dict[str, PlanetAccelerationsSetup]
     internal: VehicleAccelerationsSetup

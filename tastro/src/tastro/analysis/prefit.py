@@ -90,9 +90,7 @@ class PrefitParser(argparse.ArgumentParser):
 def prefit_closed_loop(setup: "PrefitInput") -> None:
 
     # Load configuration
-    config = ncon.CaseSetup.from_config_file(
-        setup.source_dir / "configuration.yaml"
-    )
+    config = ncon.CaseSetup.from_config_file(setup.source_dir / "configuration.yaml")
     config.perform_estimation = True
     config.perform_propagation = True
 
@@ -153,18 +151,14 @@ def plot_closed_loop_prefits(setup: "PrefitInput") -> None:
     results = PrefitResults.from_file(setup.source_dir / "prefit_results.pkl")
 
     # Get time of closest approach from configuration
-    config = ncon.CaseSetup.from_config_file(
-        setup.source_dir / "configuration.yaml"
-    )
+    config = ncon.CaseSetup.from_config_file(setup.source_dir / "configuration.yaml")
     t0 = get_propagation_start_epoch_from_config(config)
     t0_isot = ttime.DateTime.from_epoch_time_object(t0).to_iso_string(
         add_T=True, number_of_digits_seconds=0
     )
 
     # Load propagation results
-    propagation = nio.PropagationOutput.from_file(
-        setup.source_dir / "results.pkl"
-    )
+    propagation = nio.PropagationOutput.from_file(setup.source_dir / "results.pkl")
 
     # Turn epochs into hours past closest approach
     dt = (results.epochs - t0.to_float()) / 3600.0

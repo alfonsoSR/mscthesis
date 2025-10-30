@@ -12,15 +12,11 @@ from ..io import PropagationOutput
 import numpy as np
 
 
-class CartesianSettingsGenerator(
-    ObservationModelSettingsGenerator[CartesianSetup]
-):
+class CartesianSettingsGenerator(ObservationModelSettingsGenerator[CartesianSetup]):
 
     def observation_collection(self) -> tobs.ObservationCollection:
 
-        log.info(
-            "Generating observation collection from cartesian observations"
-        )
+        log.info("Generating observation collection from cartesian observations")
 
         # Cartesian link definitions
         link_definitions = self.link_definitions()

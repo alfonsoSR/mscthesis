@@ -1,28 +1,30 @@
-from ...core import SetupBase, SetupCollectionBase
-from dataclasses import dataclass
+from ...core import SetupBase
+
 from pathlib import Path
 
 
 class TroposphericCorrectionSetup(SetupBase):
 
-    model: str = NotImplemented
-    sources: list[Path] = NotImplemented
+    present: bool
+    model: str
+    sources: list[Path]
 
 
 class IonosphericCorrectionSetup(SetupBase):
 
-    model: str = NotImplemented
-    sources: list[Path] = NotImplemented
+    present: bool
+    model: str
+    sources: list[Path]
 
 
 class RelativisticCorrectionSetup(SetupBase):
 
-    model: str = NotImplemented
-    bodies: list[str] = NotImplemented
+    present: bool
+    model: str
+    bodies: list[str]
 
 
-@dataclass
-class LightTimeCorrectionsSetup(SetupCollectionBase):
+class LightTimeCorrectionsSetup(SetupBase):
 
     tropospheric: TroposphericCorrectionSetup
     ionospheric: IonosphericCorrectionSetup

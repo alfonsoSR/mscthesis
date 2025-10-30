@@ -111,14 +111,12 @@ def update_system_of_bodies(
                 case "HGA":
                     log.debug("Reference point is HGA")
                     # Get state of HGA wrt LVI in fixed frame
-                    cstate_hga_lvi_fixed = (
-                        spice.get_body_cartesian_state_at_epoch(
-                            target_body_name="MEX_HGA",
-                            observer_body_name="MEX_SPACECRAFT",
-                            reference_frame_name="MEX_SPACECRAFT",
-                            aberration_corrections="none",
-                            ephemeris_time=config.time.initial_epoch,
-                        )
+                    cstate_hga_lvi_fixed = spice.get_body_cartesian_state_at_epoch(
+                        target_body_name="MEX_HGA",
+                        observer_body_name="MEX_SPACECRAFT",
+                        reference_frame_name="MEX_SPACECRAFT",
+                        aberration_corrections="none",
+                        ephemeris_time=config.time.initial_epoch,
                     )
 
                     # Define constant ephemerides
@@ -138,9 +136,7 @@ def update_system_of_bodies(
                     )
 
                 case _:
-                    raise NotImplementedError(
-                        "Invalid reference point settings"
-                    )
+                    raise NotImplementedError("Invalid reference point settings")
 
     return bodies
 
@@ -202,20 +198,16 @@ class EstimationManager:
         if self.config.estimation.observation_models.closed_loop.present:
 
             # Generate settings for closed-loop observations
-            observation_models += (
-                self.closed_loop_generator.observation_model_settings(
-                    observations
-                )
+            observation_models += self.closed_loop_generator.observation_model_settings(
+                observations
             )
 
         # Cartesian observations
         if self.config.estimation.observation_models.cartesian.present:
 
             # Generate settings for cartesian observations
-            observation_models += (
-                self.cartesian_generator.observation_model_settings(
-                    observations
-                )
+            observation_models += self.cartesian_generator.observation_model_settings(
+                observations
             )
 
         return observation_models
@@ -262,9 +254,7 @@ class EstimationManager:
             )
 
         if len(parameters) == 0:
-            raise ValueError(
-                "Requested estimation without parameters to estimate"
-            )
+            raise ValueError("Requested estimation without parameters to estimate")
 
         # Create parameter set
         parameter_set = tpars.create_parameter_set(

@@ -36,21 +36,15 @@ def system_of_bodies_from_config(config: "CaseSetup") -> "tenv.SystemOfBodies":
 
         # Ephemeris settings
         if spacecraft_setup.ephemerides.present:
-            spacecraft_settings.ephemeris_settings = (
-                generator.ephemeris_settings()
-            )
+            spacecraft_settings.ephemeris_settings = generator.ephemeris_settings()
 
         # Rotation settings
         if spacecraft_setup.rotation.present:
-            spacecraft_settings.rotation_model_settings = (
-                generator.rotation_settings()
-            )
+            spacecraft_settings.rotation_model_settings = generator.rotation_settings()
 
         # Shape settings
         if spacecraft_setup.shape.present:
-            spacecraft_settings.vehicle_shape_settings = (
-                generator.shape_settings()
-            )
+            spacecraft_settings.vehicle_shape_settings = generator.shape_settings()
 
         # Radiation target settings
         if spacecraft_setup.radiation.present:
@@ -85,9 +79,7 @@ def system_of_bodies_from_config(config: "CaseSetup") -> "tenv.SystemOfBodies":
 
         # Rotation settings
         if planet_setup.rotation.present:
-            planet_settings.rotation_model_settings = (
-                generator.rotation_settings()
-            )
+            planet_settings.rotation_model_settings = generator.rotation_settings()
 
         # Shape settings
         if planet_setup.shape.present:
@@ -95,9 +87,7 @@ def system_of_bodies_from_config(config: "CaseSetup") -> "tenv.SystemOfBodies":
 
         # Gravity settings
         if planet_setup.gravity.present:
-            planet_settings.gravity_field_settings = (
-                generator.gravity_settings()
-            )
+            planet_settings.gravity_field_settings = generator.gravity_settings()
 
         # Radiation source settings
         if planet_setup.radiation.present:
@@ -107,9 +97,7 @@ def system_of_bodies_from_config(config: "CaseSetup") -> "tenv.SystemOfBodies":
 
         # Atmosphere settings
         if planet_setup.atmosphere.present:
-            planet_settings.atmosphere_settings = (
-                generator.atmosphere_settings()
-            )
+            planet_settings.atmosphere_settings = generator.atmosphere_settings()
 
     # Define settings for ground stations
     if "Earth" in config.environment.planets and config.perform_estimation:
@@ -143,9 +131,7 @@ def system_of_bodies_from_config(config: "CaseSetup") -> "tenv.SystemOfBodies":
     # Update vehicles with mass if defined
     for vehicle, vehicle_setup in config.environment.vehicles.items():
         if vehicle_setup.systems.mass is not None:
-            log.debug(
-                f"Setting mass of {vehicle} to {vehicle_setup.systems.mass}"
-            )
+            log.debug(f"Setting mass of {vehicle} to {vehicle_setup.systems.mass}")
             bodies.get(vehicle).mass = vehicle_setup.systems.mass
 
     # If estimation is present, update system of bodies

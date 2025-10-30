@@ -54,9 +54,7 @@ def runner_no_cli(user_input: CommandLineArguments) -> None:
             # Save simulation output to file
             assert isinstance(dynamics_simulator, tsim.SingleArcSimulator)
             simulation_results = dynamics_simulator.propagation_results
-            assert isinstance(
-                simulation_results, tprop.SingleArcSimulationResults
-            )
+            assert isinstance(simulation_results, tprop.SingleArcSimulationResults)
             log.info("Saving propagation results")
             nio.PropagationOutput.from_simulation(
                 simulation_results, config
@@ -75,9 +73,7 @@ def runner_no_cli(user_input: CommandLineArguments) -> None:
             observations = estimation_manager.observation_collection(bodies)
 
             # Create observation model
-            observation_models = estimation_manager.observation_models(
-                observations
-            )
+            observation_models = estimation_manager.observation_models(observations)
 
             # Define parameters to estimate
             parameters_to_estimate = estimation_manager.parameters_to_estimate(
@@ -128,9 +124,7 @@ def runner_no_cli(user_input: CommandLineArguments) -> None:
             results = nio.EstimationResults.from_estimation_output(
                 estimation_results, config
             )
-            results.save_to_file(
-                user_input.config_file.parent / "estimation.pkl"
-            )
+            results.save_to_file(user_input.config_file.parent / "estimation.pkl")
 
         # # Evaluate accelerations along propagated trajectory
         # if config.evaluate_accelerations:

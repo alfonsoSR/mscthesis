@@ -27,9 +27,7 @@ class VehicleSettings(SettingsGenerator[VehicleSetup]):
         # Define frame orientation
         frame_orientation = self.local.ephemerides.ephemeris_frame_orientation
         if frame_orientation == "global":
-            frame_orientation = (
-                self.config.environment.general.global_frame_orientation
-            )
+            frame_orientation = self.config.environment.general.global_frame_orientation
 
         match self.local.ephemerides.model:
 
@@ -50,19 +48,15 @@ class VehicleSettings(SettingsGenerator[VehicleSetup]):
                     raise ValueError("Interpolation step is not defined")
 
                 # Ensure interpolation buffer is defined
-                interpolation_buffer = (
-                    self.local.ephemerides.interpolation_buffer
-                )
+                interpolation_buffer = self.local.ephemerides.interpolation_buffer
                 if interpolation_buffer is None:
                     raise ValueError("Interpolation buffer not defined")
 
                 return tephs.interpolated_spice(
                     frame_origin=frame_origin,
                     frame_orientation=frame_orientation,
-                    initial_time=self.config.time.initial_epoch
-                    - interpolation_buffer,
-                    final_time=self.config.time.final_epoch
-                    + interpolation_buffer,
+                    initial_time=self.config.time.initial_epoch - interpolation_buffer,
+                    final_time=self.config.time.final_epoch + interpolation_buffer,
                     time_step=interpolation_step,
                 )
 
@@ -77,9 +71,7 @@ class VehicleSettings(SettingsGenerator[VehicleSetup]):
         # Define base frame
         base_frame = self.local.rotation.base_frame
         if base_frame == "global":
-            base_frame = (
-                self.config.environment.general.global_frame_orientation
-            )
+            base_frame = self.config.environment.general.global_frame_orientation
 
         # # Define target frame
         # target_frame = self.local.rotation.target_frame
@@ -106,9 +98,7 @@ class VehicleSettings(SettingsGenerator[VehicleSetup]):
                 )
 
             case _:
-                raise ValueError(
-                    f"Invalid rotation model: {self.local.rotation.model}"
-                )
+                raise ValueError(f"Invalid rotation model: {self.local.rotation.model}")
 
     def radiation_target_settings(
         self,
@@ -138,9 +128,7 @@ class VehicleSettings(SettingsGenerator[VehicleSetup]):
             # Check that all the occulting bodies have shape settings
             for occulting_body in planet_setup.radiation.occulting_bodies:
 
-                if not self.config.environment.planets[
-                    occulting_body
-                ].shape.present:
+                if not self.config.environment.planets[occulting_body].shape.present:
                     log.error(
                         f"Shape settings required to use {occulting_body}"
                         " as occulting body"
@@ -162,12 +150,8 @@ class VehicleSettings(SettingsGenerator[VehicleSetup]):
                 cannonball_setup = self.local.radiation.cannonball_settings
                 reference_area = cannonball_setup.reference_area
                 if reference_area is None:
-                    raise ValueError(
-                        "Missing reference area for cannonball radiation"
-                    )
-                radiation_coefficient = (
-                    cannonball_setup.radiation_pressure_coefficient
-                )
+                    raise ValueError("Missing reference area for cannonball radiation")
+                radiation_coefficient = cannonball_setup.radiation_pressure_coefficient
                 if radiation_coefficient is None:
                     raise ValueError(
                         "Missing radiation coefficient for cannonball radiation"
@@ -185,8 +169,7 @@ class VehicleSettings(SettingsGenerator[VehicleSetup]):
                 log.debug("Paneled radiation target settings")
 
                 if not (
-                    self.local.shape.present
-                    and (self.local.shape.model == "paneled")
+                    self.local.shape.present and (self.local.shape.model == "paneled")
                 ):
                     raise ValueError(
                         "Requested paneled radiation without specifying shape settings"
@@ -212,9 +195,7 @@ class VehicleSettings(SettingsGenerator[VehicleSetup]):
                 log.debug("Paneled shape settings")
 
                 if self.name != "MEX":
-                    raise ValueError(
-                        "Paneled shape model only available for MEX"
-                    )
+                    raise ValueError("Paneled shape model only available for MEX")
 
                 return paneled_mex_model()
 
@@ -249,9 +230,7 @@ class VehicleSettings(SettingsGenerator[VehicleSetup]):
                     maximum_number_of_pixels=0,
                 )
 
-                raise NotImplementedError(
-                    "Paneled aerodynamics not implemented"
-                )
+                raise NotImplementedError("Paneled aerodynamics not implemented")
 
                 return taero.constant_variable_cross_section(
                     constant_force_coefficient=[1.0, 0.0, 0.0],
@@ -263,9 +242,7 @@ class VehicleSettings(SettingsGenerator[VehicleSetup]):
                     f"Invalid vehicle aerodynamic model: {self.local.aerodynamics.model}"
                 )
 
-    def doppler_tracking_settings(
-        self, bodies: "SystemOfBodies"
-    ) -> "SystemOfBodies":
+    def doppler_tracking_settings(self, bodies: "SystemOfBodies") -> "SystemOfBodies":
 
         raise PendingDeprecationWarning(
             "Use ClosedLoopSettingsGenerator.update_vehicles instead"
@@ -297,14 +274,12 @@ class VehicleSettings(SettingsGenerator[VehicleSetup]):
                     pass
                 case "HGA":
                     # Get state of HGA wrt LVI in fixed frame
-                    cstate_hga_lvi_fixed = (
-                        spice.get_body_cartesian_state_at_epoch(
-                            target_body_name="MEX_HGA",
-                            observer_body_name="MEX_SPACECRAFT",
-                            reference_frame_name="MEX_SPACECRAFT",
-                            aberration_corrections="none",
-                            ephemeris_time=self.config.time.initial_epoch,
-                        )
+                    cstate_hga_lvi_fixed = spice.get_body_cartesian_state_at_epoch(
+                        target_body_name="MEX_HGA",
+                        observer_body_name="MEX_SPACECRAFT",
+                        reference_frame_name="MEX_SPACECRAFT",
+                        aberration_corrections="none",
+                        ephemeris_time=self.config.time.initial_epoch,
                     )
 
                     # Define constant ephemerides
@@ -324,8 +299,6 @@ class VehicleSettings(SettingsGenerator[VehicleSetup]):
                     )
 
                 case _:
-                    raise NotImplementedError(
-                        "Invalid reference point settings"
-                    )
+                    raise NotImplementedError("Invalid reference point settings")
 
         return bodies
