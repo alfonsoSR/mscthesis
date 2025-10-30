@@ -8,6 +8,7 @@ import numpy as np
 import pickle
 from .utils import get_propagation_start_epoch_from_config
 from tudatpy.astro import time_representation as ttime
+from .prefit import PrefitResults
 
 
 @dataclass
@@ -215,6 +216,11 @@ def show_doppler_residual_history_no_cli(user_input: ResidualCLI) -> None:
     )
     dt = (epochs - t0.to_float()) / 3600.0
 
+    # Load pre-fit residuals
+    prefit = PrefitResults.from_file(
+        user_input.source_dir / "prefit_results.pkl"
+    )
+
     # # Get reference from configuration
     # ref = f"Ref: {config.estimation.observations.cartesian.sources[0].path.parent.name}"
     # if config.estimation.observations.cartesian.sources[0].use_ephemerides:
@@ -228,24 +234,38 @@ def show_doppler_residual_history_no_cli(user_input: ResidualCLI) -> None:
         dir=user_input.source_dir,
         name="doppler-residuals.png",
         xlabel=f"Hours past {t0_iso}",
-        ylabel="Frequency residual [Hz]",
+        ylabel="Frequency residual [mHz]",
     )
 
     subfig_setup = ng.PlotSetup(
         xlabel=f"Hours past {t0_iso}",
-        ylabel="Frequency residual [Hz]",
+        ylabel="Residual [mHz]",
     )
 
     with ng.Mosaic("a;b", canvas_setup) as canvas:
 
-        with canvas.subplot(subfig_setup) as fig:
+        with canvas.subplot(subfig_setup) as history_fig:
 
             for idx, residual_set in enumerate(estimation.residual_history.T):
 
-                fig.line(dt, residual_set, fmt=".", label=f"Iteration {idx}")
+                history_fig.line(
+                    dt, residual_set * 1e3, fmt=".", label=f"Iteration {idx}"
+                )
 
-        with canvas.subplot() as other:
-            pass
+        with canvas.subplot(subfig_setup) as comparison_fig:
+
+            comparison_fig.line(
+                dt,
+                estimation.final_residuals * 1e3,
+                fmt=".",
+                label="Estimated [Best]",
+            )
+            comparison_fig.line(
+                dt,
+                prefit.residual * 1e3,
+                fmt=".",
+                label="Pre-fit ephemerides",
+            )
 
 
 def show_doppler_residual_history() -> None:
