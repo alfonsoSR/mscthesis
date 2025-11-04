@@ -7,6 +7,7 @@ from tudatpy.astro import time_representation as ttime
 from pathlib import Path
 import yaml
 import typing
+from ..logging import log
 
 if typing.TYPE_CHECKING:
     from ..io.cli import CommandLineArguments
@@ -32,8 +33,14 @@ class CaseSetup(SetupBase):
     @classmethod
     def from_config_file(cls, config_path: Path) -> "CaseSetup":
 
+        log.info(f"Loading configuration from {config_path}")
+
         raw_config = yaml.safe_load(config_path.open("r"))
-        return cls.from_raw(raw_config)
+        output = cls.from_raw(raw_config)
+
+        log.info(f"Finished loading configuration")
+
+        return output
 
     @classmethod
     def from_user_input(cls, user_input: "CommandLineArguments") -> "CaseSetup":

@@ -4,7 +4,7 @@ from .observations import (
     # CartesianObservationRecord,
 )
 from .propagation import PropagationOutput
-from .estimation import EstimationResults
+from .estimation import EstimationResults, PrefitResults
 
 __all__ = [
     "UserInputParser",
@@ -13,4 +13,5 @@ __all__ = [
     # "CartesianObservationRecord",
     "PropagationOutput",
     "EstimationResults",
+    "PrefitResults",
 ]

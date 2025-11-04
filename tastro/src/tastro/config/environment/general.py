@@ -1,7 +1,19 @@
 from ..core import SetupBase
-from .planets import PlanetSetup
 from .stations import StationSetup
 from .vehicles import VehicleSetup
+from . import planets
+
+
+class PlanetSetup(SetupBase):
+
+    present: bool
+    ephemerides: planets.PlanetEphemeridesSetup
+    rotation: planets.PlanetRotationSetup
+    shape: planets.PlanetShapeSetup
+    gravity: planets.PlanetGravitySetup
+    radiation: planets.PlanetRadiationSourceSetup
+    atmosphere: planets.PlanetAtmosphereSetup
+    tides: planets.SolidTideSetup
 
 
 class EnvironmentGeneralSetup(SetupBase):

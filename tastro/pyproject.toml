@@ -36,11 +36,12 @@ warn_unused_configs = true
 no_implicit_reexport = true
 
 [project.scripts]
-compare_propagations = "tastro.analysis.propagation_results:compare_propagations"
-drsw_ephemerides = "tastro.analysis.propagation_results:compare_to_ephemerides_rsw"
-dj2000_ephemerides = "tastro.analysis.propagation_results:compare_to_ephemerides_j2000"
-show_residuals = "tastro.analysis.estimation_results:show_residual_history"
-doppler_residuals = "tastro.analysis.estimation_results:show_doppler_residual_history"
-tsimulator = "tastro.analysis.runner:runner"
-tprefit = "tastro.analysis.prefit:prefit_closed_loop_cli"
-show_prefit = "tastro.analysis.prefit:plot_closed_loop_prefits_cli"
+compare_propagations = "tastro.analysis.propagation.cli:compare_propagation_results_cli"
+drsw_ephemerides = "tastro.analysis.propagation.cli:propagation_residual_wrt_ephemerides_rsw_cli"
+dj2000_ephemerides = "tastro.analysis.propagation.cli:propagation_residual_wrt_ephemerides_j2000_cli"
+tsimulator = "tastro.analysis.runner.cli:runner_cli"
+tprefit = "tastro.analysis.runner.cli:calculate_prefit_residuals_cli"
+doppler_prefits = "tastro.analysis.estimation.cli:show_doppler_prefit_residuals_cli"
+cartesian_residuals = "tastro.analysis.estimation.cli:show_cartesian_residuals_cli"
+doppler_residuals = "tastro.analysis.estimation.cli:show_doppler_residuals_cli"
+fixed_integrator_analysis = "tastro.analysis.misc.cli:compare_fixed_step_integrators_cli"

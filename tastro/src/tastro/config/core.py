@@ -1,19 +1,10 @@
 import typing
 import types
 from tastro.logging import log
-from dataclasses import dataclass
 from tudatpy.astro import time_representation as ttime
 import numpy as np
 import traceback
-
-
-class AutoDataclass(type):
-
-    def __new__(mcs, name, bases, attrs):
-
-        cls = super().__new__(mcs, name, bases, attrs)
-
-        return dataclass(cls)  # type: ignore
+from ..core import AutoDataclass
 
 
 class SetupBase(metaclass=AutoDataclass):
@@ -32,8 +23,6 @@ class SetupBase(metaclass=AutoDataclass):
         if not isinstance(member, _type):
             return False
 
-        log.debug(f"IS AN ENUMERATION: {_type}")
-
         return True
 
     @classmethod
@@ -50,7 +39,9 @@ class SetupBase(metaclass=AutoDataclass):
 
         # Handle casting of ISO string epoch to Time object
         if (target_type is ttime.Time) and isinstance(value, str):
-            log.debug(f"Casting ISO string to Time object: {name} - {target_type}")
+            log.debug(
+                f"Casting ISO string to Time object: {name} - {target_type}"
+            )
             return ttime.DateTime.from_iso_string(value).to_epoch_time_object()
 
         # Handle enumerations
@@ -59,7 +50,9 @@ class SetupBase(metaclass=AutoDataclass):
 
             # Fail if value is not an option
             if value not in getattr(target_type, "__members__"):
-                log.error(f"Invalid option {value} for enumeration {target_type}")
+                log.error(
+                    f"Invalid option {value} for enumeration {target_type}"
+                )
                 exit(1)
 
             return getattr(target_type, value)
@@ -114,7 +107,9 @@ class SetupBase(metaclass=AutoDataclass):
         return cls.__process_single_attribute(name, argtype, value)
 
     @classmethod
-    def from_raw(cls, raw_configuration: dict[str, typing.Any] | None) -> "typing.Self":
+    def from_raw(
+        cls, raw_configuration: dict[str, typing.Any] | None
+    ) -> "typing.Self":
 
         # Initialize dictionary with arguments of the class
         kwargs: dict[str, typing.Any] = {}
@@ -153,7 +148,9 @@ class SetupBase(metaclass=AutoDataclass):
 
         else:
 
-            log.fatal(f"Invalid type for raw_configuration: {type(raw_configuration)}")
+            log.fatal(
+                f"Invalid type for raw_configuration: {type(raw_configuration)}"
+            )
             exit(1)
 
         # Fill missing arguments setting them to None
@@ -167,7 +164,9 @@ class SetupBase(metaclass=AutoDataclass):
 
                 # If the expected type has from_raw, process
                 if hasattr(expected_type, "from_raw"):
-                    kwargs[expected_kwarg] = getattr(expected_type, "from_raw")(None)
+                    kwargs[expected_kwarg] = getattr(expected_type, "from_raw")(
+                        None
+                    )
                     continue
 
                 # If argument has a default value, use default

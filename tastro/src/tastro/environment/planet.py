@@ -1,4 +1,4 @@
-from ..config.environment.planets import PlanetSetup
+from ..config.environment.general import PlanetSetup
 from tudatpy.dynamics.environment_setup import (
     ephemeris as tephs,
     rotation_model as trots,
@@ -6,6 +6,7 @@ from tudatpy.dynamics.environment_setup import (
     gravity_field as tgravs,
     radiation_pressure as trad,
     atmosphere as tatmos,
+    gravity_field_variation as tdgrav,
 )
 from tudatpy.math import interpolators as tint
 from tudatpy.astro import time_representation as ttime
@@ -27,7 +28,9 @@ class PlanetSettings(SettingsGenerator[PlanetSetup]):
         # Define frame orientation
         frame_orientation = self.local.ephemerides.ephemeris_frame_orientation
         if frame_orientation == "global":
-            frame_orientation = self.config.environment.general.global_frame_orientation
+            frame_orientation = (
+                self.config.environment.general.global_frame_orientation
+            )
 
         match self.local.ephemerides.model:
 
@@ -48,15 +51,19 @@ class PlanetSettings(SettingsGenerator[PlanetSetup]):
                     raise ValueError("Interpolation step is not defined")
 
                 # Ensure interpolation buffer is defined
-                interpolation_buffer = self.local.ephemerides.interpolation_buffer
+                interpolation_buffer = (
+                    self.local.ephemerides.interpolation_buffer
+                )
                 if interpolation_buffer is None:
                     raise ValueError("Interpolation buffer not defined")
 
                 return tephs.interpolated_spice(
                     frame_origin=frame_origin,
                     frame_orientation=frame_orientation,
-                    initial_time=self.config.time.initial_epoch - interpolation_buffer,
-                    final_time=self.config.time.final_epoch + interpolation_buffer,
+                    initial_time=self.config.time.initial_epoch
+                    - interpolation_buffer,
+                    final_time=self.config.time.final_epoch
+                    + interpolation_buffer,
                     time_step=interpolation_step,
                 )
 
@@ -78,7 +85,9 @@ class PlanetSettings(SettingsGenerator[PlanetSetup]):
                     raise ValueError("Interpolation step is not defined")
 
                 # Ensure interpolation buffer is defined
-                interpolation_buffer = self.local.ephemerides.interpolation_buffer
+                interpolation_buffer = (
+                    self.local.ephemerides.interpolation_buffer
+                )
                 if interpolation_buffer is None:
                     raise ValueError("Interpolation buffer not defined")
 
@@ -112,7 +121,9 @@ class PlanetSettings(SettingsGenerator[PlanetSetup]):
         # Define base and target frames
         base_frame = self.local.rotation.base_frame
         if base_frame == "global":
-            base_frame = self.config.environment.general.global_frame_orientation
+            base_frame = (
+                self.config.environment.general.global_frame_orientation
+            )
 
         match self.local.rotation.model:
 
@@ -147,20 +158,20 @@ class PlanetSettings(SettingsGenerator[PlanetSetup]):
                         eop_buffer = eop_interpolation_step * 4
 
                         # Define settings for interpolators
-                        cio_and_tdb_interp_settings = (
-                            tint.InterpolatorGenerationSettings(
-                                interpolator_settings=tint.cubic_spline_interpolation(),
-                                initial_time=self.config.time.initial_epoch
-                                - cio_tdb_buffer,
-                                final_time=self.config.time.final_epoch
-                                + cio_tdb_buffer,
-                                time_step=cio_tdb_interpolation_step,
-                            )
+                        cio_and_tdb_interp_settings = tint.InterpolatorGenerationSettings(
+                            interpolator_settings=tint.cubic_spline_interpolation(),
+                            initial_time=self.config.time.initial_epoch
+                            - cio_tdb_buffer,
+                            final_time=self.config.time.final_epoch
+                            + cio_tdb_buffer,
+                            time_step=cio_tdb_interpolation_step,
                         )
                         eop_interp_settings = tint.InterpolatorGenerationSettings(
                             interpolator_settings=tint.cubic_spline_interpolation(),
-                            initial_time=self.config.time.initial_epoch - eop_buffer,
-                            final_time=self.config.time.final_epoch + eop_buffer,
+                            initial_time=self.config.time.initial_epoch
+                            - eop_buffer,
+                            final_time=self.config.time.final_epoch
+                            + eop_buffer,
                             time_step=eop_interpolation_step,
                         )
 
@@ -180,7 +191,9 @@ class PlanetSettings(SettingsGenerator[PlanetSetup]):
                         )
 
             case _:
-                raise ValueError(f"Invalid rotation model: {self.local.rotation.model}")
+                raise ValueError(
+                    f"Invalid rotation model: {self.local.rotation.model}"
+                )
 
     def shape_settings(self) -> tshapes.BodyShapeSettings:
 
@@ -200,7 +213,9 @@ class PlanetSettings(SettingsGenerator[PlanetSetup]):
                         "Missing equatorial radius"
                     )
 
-                return tshapes.spherical(radius=self.local.shape.equatorial_radius)
+                return tshapes.spherical(
+                    radius=self.local.shape.equatorial_radius
+                )
 
             case "ellipsoid":
                 log.debug("Ellipsoid shape settings")
@@ -238,61 +253,30 @@ class PlanetSettings(SettingsGenerator[PlanetSetup]):
                 return tgravs.central_spice(self.name)
 
             case "spherical_harmonics":
-                log.debug("Spherical harmonics gravity settings")
 
-                # Extract information about gravity field model
-                sh_model_file = self.local.gravity.spherical_harmonics_file
-                if sh_model_file is None:
-                    raise ValueError(
-                        "Missing source file for spherical harmonics model "
-                        f"of {self.name}"
-                    )
-                sh_degree = self.local.gravity.spherical_harmonics_degree
-                if sh_degree is None:
-                    raise ValueError(
-                        "Missing max degree for spherical harmonics model "
-                        f"of {self.name}"
-                    )
-                sh_order = self.local.gravity.spherical_harmonics_order
-                if sh_order is None:
-                    raise ValueError(
-                        "Missing max order for spherical harmonics model "
-                        f"of {self.name}"
-                    )
-                sh_frame = self.local.gravity.spherical_harmonics_frame
-                if sh_frame is None:
-                    raise ValueError(
-                        "Missing frame for spherical harmonics model " f"of {self.name}"
-                    )
+                log.debug(
+                    f"Spherical harmonics gravity settings: "
+                    f"degree {self.local.gravity.spherical_harmonics_degree}"
+                )
 
                 # Get path to spherical harmonics gravity field model
-                sh_source = Path(tdata.get_gravity_models_path()).resolve()
-                sh_source /= f"{self.name}/{sh_model_file}"
+                sh_source = (
+                    Path(tdata.get_gravity_models_path()).resolve()
+                    / self.name
+                    / self.local.gravity.spherical_harmonics_file
+                )
                 if not sh_source.exists():
                     raise FileNotFoundError(
                         f"Invalid spherical harmonics model: {sh_source}"
                     )
 
+                # Generate settings
                 return tgravs.from_file_spherical_harmonic(
                     file=str(sh_source),
-                    maximum_degree=sh_degree,
-                    maximum_order=sh_order,
-                    associated_reference_frame=sh_frame,
+                    maximum_degree=self.local.gravity.spherical_harmonics_degree,
+                    maximum_order=self.local.gravity.spherical_harmonics_order,
+                    associated_reference_frame=self.local.gravity.spherical_harmonics_frame,
                 )
-
-            case "central_sbdb":
-
-                log.debug("SBDB point mass gravity settings")
-
-                # Get horizons code from name
-                if len(self.name.split(" ")) != 2:
-                    raise ValueError(
-                        "The name of the planet must include the MPC code to "
-                        f"be able to set up horizons ephemerides: {self.name}"
-                    )
-                horizons_code = int(self.name.split(" ")[0])
-
-                return tgravs.central_sbdb(horizons_code)
 
             case _:
                 raise NotImplementedError(
@@ -310,7 +294,9 @@ class PlanetSettings(SettingsGenerator[PlanetSetup]):
                 # Define settings for luminosity model
                 luminosity = self.local.radiation.direct_setup.luminosity
                 if luminosity is None:
-                    raise ValueError("Missing luminosity for direct radiation source")
+                    raise ValueError(
+                        "Missing luminosity for direct radiation source"
+                    )
                 luminosity_settings = trad.constant_luminosity(luminosity)
 
                 # Return isotropic source settings
@@ -330,7 +316,9 @@ class PlanetSettings(SettingsGenerator[PlanetSetup]):
                 log.debug(f"Exponential atmosphere")
 
                 # Ensure settings for exponential atmosphere are available
-                scale_height = self.local.atmosphere.exponential_settings.scale_height
+                scale_height = (
+                    self.local.atmosphere.exponential_settings.scale_height
+                )
                 if scale_height is None:
                     raise ValueError(
                         "Missing scale height for exponential atmosphere of "
@@ -406,3 +394,30 @@ class PlanetSettings(SettingsGenerator[PlanetSetup]):
 
             case _:
                 raise NotImplementedError(f"Invalid atmosphere model:")
+
+    def gravity_field_variation_settings(
+        self,
+    ) -> list[tdgrav.GravityFieldVariationSettings]:
+
+        match self.local.tides.model:
+
+            case "solid_k2":
+
+                k2_setup = self.local.tides.solid_k2_setup
+
+                log.debug(
+                    f"Solid k2 tide on {self.name}: "
+                    f"{', '.join(k2_setup.tide_raising_bodies)}"
+                )
+                return [
+                    tdgrav.solid_body_tide(body, k2_setup.k2, 2)
+                    for body in k2_setup.tide_raising_bodies
+                ]
+
+            case _:
+
+                log.fatal(
+                    f"Invalid tide model for {self.name}: "
+                    f"{self.local.tides.model}"
+                )
+                exit(1)
