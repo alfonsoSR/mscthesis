@@ -19,3 +19,10 @@ class ClosedLoopDopplerSetup(SetupBase):
     link_definitions: dict[str, DopplerLinkDefinitionSetup]
     # light_time: LightTimeSetup
     ancillary: DopplerAncillarySettingsSetup
+
+
+class OpenLoopDopplerSetup(SetupBase):
+
+    present: bool
+    link_definitions: dict[str, DopplerLinkDefinitionSetup]
+    ancillary: DopplerAncillarySettingsSetup

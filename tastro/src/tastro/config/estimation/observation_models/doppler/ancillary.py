@@ -10,3 +10,4 @@ class DopplerAncillarySettingsSetup(SetupBase):
     reference_band: tanc.FrequencyBands
     reference_frequency: float
     integration_time: ttime.Time
+    present: bool = False

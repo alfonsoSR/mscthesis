@@ -11,15 +11,17 @@ class StationCoordinatesSetup(SetupBase):
     body_deformation: bool
 
 
-class StationLightTimeCorrectionsSetup(SetupBase):
+class UplinkFrequencySetup(SetupBase):
 
-    tropospheric_correction: bool
-    ionospheric_correction: bool
-    relativistic_correction: bool
+    present: bool
+    start: list[ttime.Time]
+    end: list[ttime.Time]
+    ref_freq: list[float]
+    ramp_rate: list[float]
 
 
 class StationSetup(SetupBase):
 
     present: bool
     coordinates: StationCoordinatesSetup
-    ltcorrections: StationLightTimeCorrectionsSetup
+    uplink: UplinkFrequencySetup

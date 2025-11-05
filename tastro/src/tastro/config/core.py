@@ -35,7 +35,19 @@ class SetupBase(metaclass=AutoDataclass):
 
         # Avoid casting None when a parameter is not set
         if value is None:
-            return value
+
+            # Return None if target type is not container
+            if not isinstance(target_type, types.GenericAlias):
+                return value
+
+            # Return empty containers instead of None
+            target_type_name = str(target_type).split("[")[0]
+            if target_type_name == "list":
+                return []
+            elif target_type_name == "dict":
+                return {}
+            else:
+                raise NotImplementedError("Invalid generic alias")
 
         # Handle casting of ISO string epoch to Time object
         if (target_type is ttime.Time) and isinstance(value, str):
@@ -142,7 +154,7 @@ class SetupBase(metaclass=AutoDataclass):
             else:
                 log.fatal(
                     "Missing field in configuration could not be marked "
-                    "as not present"
+                    f"as not present :: {cls.__name__}"
                 )
                 exit(1)
 

@@ -8,6 +8,7 @@ class AbsoluteFilterSetup(SetupBase):
     value: float
     filter_out: bool
     use_opposite: bool
+    station: str = "all"
 
 
 class BetweenEpochsFilterSetup(SetupBase):
@@ -16,6 +17,7 @@ class BetweenEpochsFilterSetup(SetupBase):
     second_epoch: ttime.Time
     filter_out: bool
     use_opposite: bool
+    station: str = "all"
 
 
 class FiltersSetup(SetupBase):
