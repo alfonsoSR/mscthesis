@@ -2,20 +2,33 @@ from ..core import SettingsGenerator
 from tudatpy.estimation.observable_models_setup import (
     light_time_corrections as tlight,
     links as tlinks,
+    model_settings as toms,
 )
+from tudatpy.estimation import observations as tobs
 
 # from .links import link_end_from_config
 from ..config.estimation.observation_models.cartesian import CartesianSetup
-from ..config.estimation.observation_models.closed_loop import (
+from ..config.estimation.observation_models.doppler import (
     ClosedLoopDopplerSetup,
 )
 from ..config.estimation.observation_models.links import LinkEndSetup
 from ..logging import log
 
+from typing import TYPE_CHECKING
+import abc
 
-class ObservationModelSettingsGenerator[T: (CartesianSetup, ClosedLoopDopplerSetup)](
-    SettingsGenerator[T]
-):
+if TYPE_CHECKING:
+
+    from ..config.estimation.observation_models.cartesian import CartesianSetup
+    from ..config.estimation.observation_models.doppler import (
+        ClosedLoopDopplerSetup,
+        OpenLoopDopplerSetup,
+    )
+
+
+class ObservationModelSettingsGenerator[
+    T: ("CartesianSetup", "ClosedLoopDopplerSetup", "OpenLoopDopplerSetup")
+](SettingsGenerator[T], metaclass=abc.ABCMeta):
 
     def link_definitions(self) -> dict[str, tlinks.LinkDefinition]:
 
@@ -25,9 +38,9 @@ class ObservationModelSettingsGenerator[T: (CartesianSetup, ClosedLoopDopplerSet
             log.debug(f"Link definition :: {link_id}")
 
             link_ends = {
-                getattr(tlinks.LinkEndType, link_end_type): link_end_from_config(
-                    link_end_config
-                )
+                getattr(
+                    tlinks.LinkEndType, link_end_type
+                ): link_end_from_config(link_end_config, link_id)
                 for link_end_type, link_end_config in link_config.__dict__.items()
             }
             link_definitions[link_id] = tlinks.LinkDefinition(link_ends)
@@ -115,15 +128,34 @@ class ObservationModelSettingsGenerator[T: (CartesianSetup, ClosedLoopDopplerSet
             failure_handling=convergence_setup.on_failure,
         )
 
+    @abc.abstractmethod
+    def observation_collection(self) -> "tobs.ObservationCollection": ...
 
-def link_end_from_config(link_end_config: LinkEndSetup) -> tlinks.LinkEndId:
+    @abc.abstractmethod
+    def observation_model_settings(
+        self, observations: "tobs.ObservationCollection"
+    ) -> "list[toms.ObservationModelSettings]": ...
 
-    log.debug(f"Link end: {link_end_config.reference_point} in {link_end_config.body}")
+
+def link_end_from_config(
+    link_end_config: LinkEndSetup, link_id: str
+) -> tlinks.LinkEndId:
+
+    # Define reference point
+    match link_end_config.reference_point:
+
+        case "origin":
+            link_end_id = link_end_config.body
+        case "__id":
+            link_end_id = link_id
+        case _:
+            link_end_id = link_end_config.reference_point
+
+    log.debug(f"Link end: {link_end_id} on {link_end_config.body}")
 
     if link_end_config.reference_point == "origin":
         return tlinks.body_origin_link_end_id(link_end_config.body)
     else:
         return tlinks.body_reference_point_link_end_id(
-            body_name=link_end_config.body,
-            reference_point_id=link_end_config.reference_point,
+            body_name=link_end_config.body, reference_point_id=link_end_id
         )

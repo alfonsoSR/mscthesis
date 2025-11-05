@@ -8,7 +8,7 @@
 #     light_time_correction_settings_from_config,
 #     light_time_convergence_settings_from_config,
 # )
-from .interface import update_system_of_bodies, EstimationManager
+from .interface import EstimationManager
 
 # from .observation_models import (
 #     CartesianSettingsGenerator,
@@ -21,7 +21,6 @@ __all__ = [
     # "light_time_correction_settings_from_config",
     # "light_time_convergence_settings_from_config",
     # "closed_loop_observation_model_from_config",
-    "update_system_of_bodies",
     "EstimationManager",
     # "CartesianSettingsGenerator",
     # "ClosedLoopSettingsGenerator",

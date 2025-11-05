@@ -8,7 +8,13 @@ from tudatpy.astro import element_conversion as telc
 import numpy as np
 from tudatpy.astro import time_representation as ttime
 from ..core import SettingsGenerator
-from ..io.observations.doppler import get_ground_station_reference_state_itrf
+
+# from ..io.observations.closed_loop import (
+#     get_ground_station_reference_state_itrf,
+# )
+from ..utils import get_ground_station_reference_state_itrf
+from ..logging import log
+import traceback
 
 
 class StationSettings(SettingsGenerator[StationSetup]):
@@ -22,6 +28,9 @@ class StationSettings(SettingsGenerator[StationSetup]):
 
         # Add linear motion settings
         if self.local.coordinates.linear_motion:
+
+            log.debug("Linear station motion settings")
+
             motion_settings.append(
                 tgss.LinearGroundStationMotionSettings(
                     linear_velocity=cstate_itrf2014[3:],
@@ -31,9 +40,10 @@ class StationSettings(SettingsGenerator[StationSetup]):
 
         # Add shape-deformation motion settings
         if self.local.coordinates.body_deformation:
-            raise NotImplementedError(
-                "Displacements based on body deformation not implemented"
-            )
+
+            log.fatal(traceback.extract_stack()[-2])
+            log.fatal("Displacements based on body deformation not available")
+            exit(1)
 
         return motion_settings
 
