@@ -80,6 +80,7 @@ def calculate_prefit_residuals(user_input: CommandLineInput) -> None:
         )
 
         # Calculate pre-fit residuals
+        log.info("Calculating pre-fit residuals")
         tobs.compute_residuals_and_dependent_variables(
             observation_collection=observations,
             observation_simulators=observation_simulators,
@@ -87,6 +88,7 @@ def calculate_prefit_residuals(user_input: CommandLineInput) -> None:
         )
 
         # Save output
+        log.info("Saving results of pre-fit analysis")
         output = PrefitResults.from_observation_collection(observations)
         output.save_to_file(manager.source_dir / "prefit_results.pkl")
 
