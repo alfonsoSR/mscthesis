@@ -90,24 +90,6 @@ class EstimationManager:
                     generator.observation_collection()
                 )
 
-        # # Closed-loop observations
-        # if self.closed_loop_present:
-        #     observation_collections.append(
-        #         self.closed_loop_generator.observation_collection(bodies)
-        #     )
-
-        # # Cartesian observations
-        # if self.cartesian_present:
-        #     observation_collections.append(
-        #         self.cartesian_generator.observation_collection()
-        #     )
-
-        # # Open-loop observations
-        # if self.open_loop_present:
-        #     observation_collections.append(
-        #         self.open_loop_generator.observation_collection()
-        #     )
-
         # Return merged observation collections
         return tobs.merge_observation_collections(observation_collections)
 
@@ -125,36 +107,6 @@ class EstimationManager:
                 observation_models += generator.observation_model_settings(
                     observations
                 )
-
-        # # Closed-loop Doppler
-        # if self.closed_loop_present:
-
-        #     # Generate settings for closed-loop observations
-        #     observation_models += (
-        #         self.closed_loop_generator.observation_model_settings(
-        #             observations
-        #         )
-        #     )
-
-        # # Cartesian observations
-        # if self.cartesian_present:
-
-        #     # Generate settings for cartesian observations
-        #     observation_models += (
-        #         self.cartesian_generator.observation_model_settings(
-        #             observations
-        #         )
-        #     )
-
-        # # Open-loop Doppler
-        # if self.open_loop_present:
-
-        #     # Generate settings for open-loop observations
-        #     observation_models += (
-        #         self.open_loop_generator.observation_model_settings(
-        #             observations
-        #         )
-        #     )
 
         return observation_models
 

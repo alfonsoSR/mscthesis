@@ -134,6 +134,8 @@ class EnvironmentGenerator:
 
             try:
 
+                print(self.config.estimation.observations.closed_loop.uplink)
+
                 # Display information
                 log.debug(f"Loading uplink information [DEPRECATED]")
 
@@ -153,8 +155,10 @@ class EnvironmentGenerator:
                     uplink_interpolator
                 )
 
-            except Exception as err:
-                raise err
+            except SystemExit:
+                log.warning(
+                    f"Bad handling of missing uplink settings: {station_name}"
+                )
 
         # No uplink frequency
         else:
