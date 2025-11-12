@@ -30,10 +30,17 @@ class ResidualHistoryManager(AnalysisFigureManagerBase[CLInputFigure]):
             self.source_dir / "results.pkl"
         )
 
-        # Define propagation epochs and distance to Mars
+        # Define a mask for the propagation epochs based on observations
         self.epochs = estimation.epochs
-        self.propagation_epochs = propagation.epochs
-        self.dmars = nt.CartesianState(*propagation.rstate_j2000.T).r_mag
+        observation_period_mask = (
+            propagation.epochs >= np.min(self.epochs)
+        ) * (propagation.epochs <= np.max(self.epochs))
+
+        # Get masked propagation epochs and distance to Mars
+        self.propagation_epochs = propagation.epochs[observation_period_mask]
+        self.dmars = nt.CartesianState(*propagation.rstate_j2000.T).r_mag[
+            observation_period_mask
+        ]
 
         return None
 
