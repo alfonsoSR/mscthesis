@@ -145,9 +145,16 @@ class EstimationManager:
 
             log.debug("Estimation of radiation pressure coefficients")
 
+            # parameters.append(
+            #     tpars.radiation_pressure_coefficient(
+            #         body=self.config.environment.general.spacecraft
+            #     )
+            # )
+
             parameters.append(
-                tpars.radiation_pressure_coefficient(
-                    body=self.config.environment.general.spacecraft
+                tpars.radiation_pressure_target_direction_scaling(
+                    target_body=self.config.environment.general.spacecraft,
+                    source_body="Sun",
                 )
             )
 
