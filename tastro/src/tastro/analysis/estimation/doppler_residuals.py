@@ -112,10 +112,14 @@ class ResidualHistoryManager(AnalysisFigureManagerBase[CLInputFigure]):
                     subfig.line(
                         dt_prop, dmars, color="black", alpha=0.2, axis="right"
                     )
-                    for residual_set in self.residual_history:
+                    for jdx, residual_set in enumerate(self.residual_history):
 
                         subfig.line(
-                            dt, residual_set[idx] * scale, fmt=".", markersize=2
+                            dt,
+                            residual_set[idx] * scale,
+                            fmt=".",
+                            markersize=2,
+                            label=f"Iteration {jdx + 1}",
                         )
 
             # Generate setup for final subfigure
