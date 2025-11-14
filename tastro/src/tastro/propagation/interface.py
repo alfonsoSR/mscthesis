@@ -10,6 +10,7 @@ from tudatpy.dynamics.propagation_setup import (
 from tudatpy.interface import spice
 import numpy as np
 from ..logging import log
+from ..io import EstimationResults
 
 if TYPE_CHECKING:
     from tudatpy.dynamics.environment import SystemOfBodies
@@ -25,7 +26,9 @@ def translational_propagator_settings_from_config(
     log.debug(f"Center :: {config.environment.general.center}")
     log.debug(
         "State representation :: "
-        + str(config.propagation.integrator.general.state_representation).split(".")[-1]
+        + str(config.propagation.integrator.general.state_representation).split(
+            "."
+        )[-1]
     )
 
     # Initialize settings generator

@@ -10,10 +10,14 @@ from tudatpy.estimation.observations_setup import (
     observations_wrapper as towpr,
 )
 from tudatpy.dynamics.environment import SystemOfBodies
-from .common import ObservationModelSettingsGenerator
+from .common import (
+    ObservationModelSettingsGenerator,
+    link_end_from_reference_point,
+)
 from ..logging import log
 from ..io.observations import load_open_loop_doppler_observations_from_config
 import numpy as np
+import spiceypy
 
 from typing import TYPE_CHECKING
 
@@ -21,6 +25,7 @@ if TYPE_CHECKING:
     from ..config.estimation.observation_models.doppler import (
         OpenLoopDopplerSetup,
     )
+    from ..config.environment.stations import StationSetup
 
 
 class OpenLoopSettingsGenerator(
@@ -96,47 +101,148 @@ class OpenLoopSettingsGenerator(
         # Define settings for observation filters
         filters = self.filter_settings()
 
+        # Get set of stations with uplink information
+        uplink_stations: dict[tuple[ttime.Time, ttime.Time], str] = {}
+        for station, station_setup in self.config.environment.stations.items():
+
+            if station_setup.uplink.present:
+
+                # Get uplink intervals for current station
+                for start, end in zip(
+                    station_setup.uplink.start, station_setup.uplink.end
+                ):
+
+                    uplink_stations[(start, end)] = station
+
+        # Define link end for spacecraft
+        log.warning("TEMPORARY FIX FOR SPACECRAFT LINK END")
+        spacecraft_link_end = link_end_from_reference_point("HGA", "MEX", "")
+
         # Define observation collection
         log.info("Filtering open-loop observations")
         observation_collection_contents: list[tobs.SingleObservationSet] = []
         for station, station_data in data_per_station.items():
 
-            # Get link definition for current station
-            link_definition = link_definitions[station]
-
-            # Create observation set
-            values = [np.array([x]) for x in station_data.observations]
-            observation_set = tobs.single_observation_set(
-                observable_type=toms.ObservableType.doppler_measured_frequency_type,
-                link_definition=link_definition,
-                observations=values,
-                observation_times=station_data.epochs.tolist(),
-                reference_link_end=tlinks.LinkEndType.receiver,
-                ancilliary_settings=ancillary_settings,
+            # Estimate transmission epochs from observation timestamps
+            one_way_light_time = np.array(
+                spiceypy.spkezr(
+                    targ=self.config.environment.general.spacecraft,
+                    et=station_data.epochs,
+                    ref=self.config.environment.general.global_frame_orientation,
+                    abcorr="CN",
+                    obs="Earth",
+                )[-1]
+            )
+            estimated_tx_epochs = np.array(
+                [
+                    ttime.Time(epoch)
+                    for epoch in station_data.epochs - 2.0 * one_way_light_time
+                ]
             )
 
-            # Define list of filters for current station
-            station_filters: list[tobsp.ObservationFilterBase] = []
-            if "all" in filters:
-                station_filters += filters["all"]
-            if station in filters:
-                station_filters += filters[station]
+            # Map observation epochs to active uplink stations
+            epochs_per_uplink: dict[str, list[ttime.Time]] = {}
+            observations_per_uplink: dict[str, list[float]] = {}
+            for coverage, uplink_station in uplink_stations.items():
 
-            # Apply filters to observations
-            for _filter in station_filters:
-                observation_set.filter_observations(_filter)
+                # Get epochs and observations using current uplink
+                mask = (estimated_tx_epochs >= coverage[0]) * (
+                    estimated_tx_epochs <= coverage[1]
+                )
+                current_epochs = station_data.epochs[mask]
+                current_observations = station_data.observations[mask]
 
-            # Display debug information for station
-            nobs_raw = len(station_data.observations)
-            nobs_filtered = len(observation_set.concatenated_observations)
-            nobs_delta = nobs_raw - nobs_filtered
-            log.debug(
-                f"Station {station} :: Raw {nobs_raw} :: "
-                f"Filtered {nobs_filtered} :: Delta {nobs_delta}"
+                # Skip if no observations in current section
+                if len(current_epochs) == 0:
+                    continue
+
+                # Update containers
+                if uplink_station not in epochs_per_uplink:
+                    epochs_per_uplink[uplink_station] = current_epochs.tolist()
+                    observations_per_uplink[uplink_station] = (
+                        current_observations.tolist()
+                    )
+                else:
+                    epochs_per_uplink[uplink_station] += current_epochs.tolist()
+                    observations_per_uplink[
+                        uplink_station
+                    ] += current_observations.tolist()
+
+            # Define link end for current station
+            station_link_end = link_end_from_reference_point(
+                station, "Earth", station
             )
 
-            # Add observation set to collection contents
-            observation_collection_contents.append(observation_set)
+            # Loop over active uplink stations and create observation sets
+            for uplink_station in epochs_per_uplink:
+
+                # Create link definition
+                uplink = link_end_from_reference_point(
+                    uplink_station, "Earth", uplink_station
+                )
+                link_definition = tlinks.LinkDefinition(
+                    {
+                        tlinks.LinkEndType.transmitter: uplink,
+                        tlinks.LinkEndType.retransmitter: spacecraft_link_end,
+                        tlinks.LinkEndType.receiver: station_link_end,
+                    }
+                )
+
+                # Create observation subset
+                values = [
+                    np.array([x])
+                    for x in observations_per_uplink[uplink_station]
+                ]
+                observation_subset = tobs.single_observation_set(
+                    observable_type=toms.ObservableType.doppler_measured_frequency_type,
+                    link_definition=link_definition,
+                    observations=values,
+                    observation_times=epochs_per_uplink[uplink_station],
+                    reference_link_end=tlinks.LinkEndType.receiver,
+                    ancilliary_settings=ancillary_settings,
+                )
+
+                # # The observations are sorted, so if one is in a section, the next
+                # # one can only be in that section or in one after
+
+                # # Get link definition for current station
+                # link_definition = link_definitions[station]
+
+                # # Create observation set
+                # values = [np.array([x]) for x in station_data.observations]
+                # observation_set = tobs.single_observation_set(
+                #     observable_type=toms.ObservableType.doppler_measured_frequency_type,
+                #     link_definition=link_definition,
+                #     observations=values,
+                #     observation_times=station_data.epochs.tolist(),
+                #     reference_link_end=tlinks.LinkEndType.receiver,
+                #     ancilliary_settings=ancillary_settings,
+                # )
+
+                # Define list of filters for current station
+                station_filters: list[tobsp.ObservationFilterBase] = []
+                if "all" in filters:
+                    station_filters += filters["all"]
+                if station in filters:
+                    station_filters += filters[station]
+
+                # Apply filters to observations
+                for _filter in station_filters:
+                    observation_subset.filter_observations(_filter)
+
+                # Display debug information for station
+                nobs_raw = len(epochs_per_uplink[uplink_station])
+                nobs_filtered = len(
+                    observation_subset.concatenated_observations
+                )
+                nobs_delta = nobs_raw - nobs_filtered
+                log.debug(
+                    f"Station {station} :: Raw {nobs_raw} :: "
+                    f"Filtered {nobs_filtered} :: Delta {nobs_delta}"
+                )
+
+                # Add observation set to collection contents
+                observation_collection_contents.append(observation_subset)
 
         # Define observation collection
         observation_collection = tobs.ObservationCollection(

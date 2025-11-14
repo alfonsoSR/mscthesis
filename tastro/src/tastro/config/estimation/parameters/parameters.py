@@ -6,3 +6,4 @@ class ParametersSetup(SetupBase):
     initial_states: bool
     drag_coefficient: bool
     radiation_pressure_coefficient: bool
+    arcwise_drag_coefficient: bool = False

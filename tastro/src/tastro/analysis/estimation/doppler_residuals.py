@@ -1,8 +1,13 @@
-from ...io.command_line.core import CLInputFigure, CLParserFigure
+from ...io.command_line.core import (
+    CLInputFigure,
+    CLParserFigure,
+    CommandLineInput,
+)
 from ..core import AnalysisFigureManagerBase
 from ...io import EstimationResults, PropagationOutput
 from nastro import types as nt, graphics as ng
 import numpy as np
+from ...logging import log
 
 
 class ResidualHistoryManager(AnalysisFigureManagerBase[CLInputFigure]):
@@ -218,3 +223,59 @@ def show_doppler_residuals(user_input: CLInputFigure) -> None:
     #             )
 
     return None
+
+
+def show_estimation_summary(user_input: CommandLineInput) -> None:
+
+    # Define path to output file and show info
+    output_file = user_input.source_dir / "estimation-summary.log"
+    log.info(f"Writing estimation summary to {output_file}")
+
+    # Load estimation output
+    estimation = EstimationResults.from_file(
+        user_input.source_dir / "estimation.pkl"
+    )
+
+    with output_file.open("w") as buffer:
+
+        # Loop over parameter and residual histories
+        for step, residuals in enumerate(estimation.residual_history.T):
+
+            # Get parameter update in current step
+            previous_parameters = estimation.parameter_history[:, step]
+            current_parameters = estimation.parameter_history[:, step + 1]
+            parameter_update = current_parameters - previous_parameters
+            update_string = " ".join(
+                [f"{item:.5e}" for item in parameter_update]
+            )
+
+            # Get RMS of current residuals
+            n_observations = len(residuals)
+            residual_rms = np.linalg.norm(residuals) / np.sqrt(n_observations)
+
+            # Display information
+            buffer.write(
+                f"Estimation step: {step + 1} - {n_observations} points\n"
+            )
+            buffer.write(f"Current residual: {residual_rms:.7f}\n")
+            buffer.write(f"Parameter update: {update_string}\n")
+
+        # Get final residuals
+        final_residuals = estimation.residual_history[
+            :, estimation.best_iteration_index
+        ]
+        final_rms = np.linalg.norm(final_residuals) / np.sqrt(
+            len(final_residuals)
+        )
+
+        # Get final parameters
+        final_parameters = estimation.parameter_history[
+            :, estimation.best_iteration_index
+        ]
+        final_parameters_string = " ".join(
+            [f"{item:.5e}" for item in final_parameters]
+        )
+
+        # Show final residual and parameters
+        buffer.write(f"Final residual: {final_rms:.7f}\n")
+        buffer.write(f"Final parameters: {final_parameters_string}\n")

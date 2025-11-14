@@ -20,6 +20,7 @@ from .closed_loop import ClosedLoopSettingsGenerator
 from .open_loop import OpenLoopSettingsGenerator
 from .common import ObservationModelSettingsGenerator
 from typing import Type
+from tudatpy.astro import time_representation as ttime
 
 
 class EstimationManager:
@@ -111,7 +112,9 @@ class EstimationManager:
         return observation_models
 
     def parameters_to_estimate(
-        self, propagator: tprop.PropagatorSettings, bodies: tenv.SystemOfBodies
+        self,
+        propagator: tprop.PropagatorSettings,
+        bodies: tenv.SystemOfBodies,
     ) -> tpar.EstimatableParameterSet:
 
         log.info("Defining parameters to estimate")
@@ -129,16 +132,38 @@ class EstimationManager:
                 bodies=bodies,
             )
 
-        # Drag coefficient
+        # Constant drag coefficient
         if self.config.estimation.parameters.drag_coefficient:
 
-            log.debug("Estimation of drag coefficient")
+            log.debug("Estimation of constant drag coefficient")
 
             parameters.append(
                 tpars.constant_drag_coefficient(
                     body=self.config.environment.general.spacecraft
                 )
             )
+
+        # Drag coefficient
+        if self.config.estimation.parameters.arcwise_drag_coefficient:
+
+            log.debug("Estimation of arcwise drag coefficient")
+
+            t0 = self.config.propagation.integrator.general.custom_start_epoch
+            deltas = [-9.5, -2.5, 4.5, 11.5]
+            times = [t0 + ttime.Time(dt * 3600.0) for dt in deltas]
+
+            parameters.append(
+                tpars.arcwise_constant_drag_coefficient(
+                    body=self.config.environment.general.spacecraft,
+                    arc_initial_times=times,
+                )
+            )
+
+            # parameters.append(
+            #     tpars.constant_drag_coefficient(
+            #         body=self.config.environment.general.spacecraft
+            #     )
+            # )
 
         # Radiation pressure coefficient
         if self.config.estimation.parameters.radiation_pressure_coefficient:

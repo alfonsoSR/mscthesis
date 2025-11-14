@@ -141,21 +141,32 @@ def link_end_from_config(
     link_end_config: LinkEndSetup, link_id: str
 ) -> tlinks.LinkEndId:
 
-    # Define reference point
-    match link_end_config.reference_point:
+    return link_end_from_reference_point(
+        reference_point=link_end_config.reference_point,
+        body=link_end_config.body,
+        link_id=link_id,
+    )
+
+
+def link_end_from_reference_point(
+    reference_point: str, body: str, link_id: str
+) -> tlinks.LinkEndId:
+
+    # Process reference point
+    match reference_point:
 
         case "origin":
-            link_end_id = link_end_config.body
+            reference_point = body
         case "__id":
-            link_end_id = link_id
+            reference_point = link_id
         case _:
-            link_end_id = link_end_config.reference_point
+            pass
 
-    log.debug(f"Link end: {link_end_id} on {link_end_config.body}")
+    # Show debug information
+    log.debug(f"Link end: {reference_point} on {body}")
 
-    if link_end_config.reference_point == "origin":
-        return tlinks.body_origin_link_end_id(link_end_config.body)
+    # Create link end
+    if reference_point == body:
+        return tlinks.body_origin_link_end_id(reference_point)
     else:
-        return tlinks.body_reference_point_link_end_id(
-            body_name=link_end_config.body, reference_point_id=link_end_id
-        )
+        return tlinks.body_reference_point_link_end_id(body, reference_point)

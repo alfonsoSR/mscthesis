@@ -1,8 +1,8 @@
 from .cartesian_residuals import show_cartesian_residuals
 from .doppler_residuals import show_doppler_residuals
-from ...io.command_line.core import CLParserFigure
+from ...io.command_line.core import CLParserFigure, CLParser
 from .prefit import show_doppler_prefit_residuals
-from .doppler_residuals import ResidualHistoryManager
+from .doppler_residuals import ResidualHistoryManager, show_estimation_summary
 
 
 def show_cartesian_residuals_cli() -> None:
@@ -27,5 +27,13 @@ def show_doppler_prefit_residuals_cli() -> None:
 
     user_input = CLParserFigure().parse_args()
     show_doppler_prefit_residuals(user_input)
+
+    return None
+
+
+def show_estimation_summary_cli() -> None:
+
+    user_input = CLParser().parse_args()
+    show_estimation_summary(user_input)
 
     return None
