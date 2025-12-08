@@ -125,6 +125,9 @@ class ClosedLoopSettingsGenerator(
             for _filter in filters:
                 observation_set.filter_observations(_filter)
 
+            print("Setting noise to 4e-3")
+            observation_set.set_constant_weight(1.0 / ((4e-3 * 4e-3)))
+
             # Display debug information for station
             nobs_raw = len(station_data.observations)
             nobs_filtered = len(observation_set.concatenated_observations)

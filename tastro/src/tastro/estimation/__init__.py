@@ -8,7 +8,11 @@
 #     light_time_correction_settings_from_config,
 #     light_time_convergence_settings_from_config,
 # )
-from .interface import EstimationManager
+from .interface import (
+    EstimationManager,
+    perform_estimation,
+    perform_prefit_analysis,
+)
 
 # from .observation_models import (
 #     CartesianSettingsGenerator,
@@ -22,6 +26,8 @@ __all__ = [
     # "light_time_convergence_settings_from_config",
     # "closed_loop_observation_model_from_config",
     "EstimationManager",
+    "perform_estimation",
+    "perform_prefit_analysis",
     # "CartesianSettingsGenerator",
     # "ClosedLoopSettingsGenerator",
 ]

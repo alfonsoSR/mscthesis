@@ -12,7 +12,11 @@ from ...core import SettingsGenerator
 from tudatpy.dynamics.environment import SystemOfBodies
 from tudatpy.interface import spice
 from ...logging import log
-from .macro import paneled_mex_model
+from .macro import (
+    paneled_mex_model,
+    create_paneled_geometry_from_config,
+    create_paneled_model,
+)
 
 
 class VehicleSettings(SettingsGenerator[VehicleSetup]):
@@ -216,7 +220,15 @@ class VehicleSettings(SettingsGenerator[VehicleSetup]):
                         "Paneled shape model only available for MEX"
                     )
 
-                return paneled_mex_model()
+                # Compatibility with old configuration
+                if len(self.local.radiation.paneled_settings) == 0:
+                    log.warning("Using legacy setup for paneled model")
+                    return paneled_mex_model(self.local)
+                else:
+                    return create_paneled_model(self.local)
+
+                # # Define geometry
+                # return paneled_mex_model(self.local)
 
             case _:
                 raise NotImplementedError(

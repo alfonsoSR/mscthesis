@@ -100,6 +100,7 @@ class CLInputFigure(CommandLineInput):
     save: bool
     show: bool
     name_modifier: str
+    group_in_base: bool
 
 
 class CLParserFigureBase[T: CLInputFigure](CommandLineParser[T]):
@@ -133,6 +134,12 @@ class CLParserFigureBase[T: CLInputFigure](CommandLineParser[T]):
             default="",
             help="Modifier for the file name of the figure",
         )
+        self.figures_group.add_argument(
+            "--force-single",
+            dest="group_in_base",
+            action="store_false",
+            help="Make individual plots per source instead of grouping into single figure",
+        )
 
         return None
 
@@ -154,6 +161,9 @@ class CLParserFigureBase[T: CLInputFigure](CommandLineParser[T]):
         # Update with save and show options
         arguments["save"] = defaults.save
         arguments["show"] = defaults.show
+
+        # Update with grouping options
+        arguments["group_in_base"] = defaults.group_in_base
 
         return arguments
 

@@ -58,7 +58,7 @@ def compare_propagation_results(user_input: CLInputComparison) -> None:
 
     # Define setup for figure
     canvas_setup = ng.PlotSetup(
-        canvas_size=manager.default_canvas_size,
+        canvas_size=(6, 6),
         canvas_title=f"Residual between {manager.current_id} and {manager.ref_id} [R]",
         show=manager.user_input.show,
         save=manager.user_input.save,
@@ -69,8 +69,8 @@ def compare_propagation_results(user_input: CLInputComparison) -> None:
     # Define common settings for subfigures
     subfig_setup = ng.PlotSetup(
         xlabel=f"Hours past {manager.ref_epoch_isot}",
-        rlabel=r"$d_{mars}$ [$x10^{-7}$ m]",
-        scilimits=(-2, 3),
+        # rlabel=r"$d_{mars}$ [$x10^{-7}$ m]",
+        # scilimits=(-2, 3),
     )
 
     # Generate figure
@@ -80,15 +80,14 @@ def compare_propagation_results(user_input: CLInputComparison) -> None:
 
         for idx, label in enumerate(manager.vector_components):
 
-            unit = "m/s" if ((idx % 2) != 0) else "m"
+            unit = "mm/s" if ((idx % 2) != 0) else "m"
+            scale = 1e3 if unit == "mm/s" else 1.0
             current_setup = subfig_setup.version(
                 ylabel=rf"$\Delta {label}$ [{unit}]"
             )
 
             # Generate subfigure
-            with canvas.subplot(
-                setup=current_setup, generator=ng.DoubleAxis
-            ) as subfig:
+            with canvas.subplot(setup=current_setup) as subfig:
 
-                subfig.line(dt, getattr(residual, components[idx]))
-                subfig.line(dt, dmars, axis="right", alpha=0.5)
+                subfig.line(dt, getattr(residual, components[idx]) * scale)
+                # subfig.line(dt, dmars, axis="right", alpha=0.5)

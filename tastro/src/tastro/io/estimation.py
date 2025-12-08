@@ -28,6 +28,7 @@ class EstimationResults:
         residual_history: np.ndarray,
         estimation_epochs: np.ndarray,
         simulation_history: list[PropagationOutput] | None = None,
+        covariance_history: dict[float, np.ndarray] | None = None,
     ) -> None:
 
         self.best_iteration_index = best_iteration_index
@@ -37,8 +38,63 @@ class EstimationResults:
         self.residual_history = residual_history
         self.simulation_history = simulation_history
         self.epochs = estimation_epochs
+        self.covariance_history = covariance_history
 
         return None
+
+    @staticmethod
+    def from_estimator_output_and_observations(
+        estimator: "testa.Estimator",
+        estimation_output: "testa.EstimationOutput",
+        observations: "ObservationCollection",
+        config: "CaseSetup",
+    ) -> "EstimationResults":
+
+        # Extract epochs from observations
+        estimation_epochs = np.array(
+            observations.get_concatenated_observation_times()
+        )
+
+        # Load simulation results per iteration into data structures
+        simulation_results: "list[PropagationOutput]" = []
+        for idx, result in enumerate(
+            estimation_output.simulation_results_per_iteration
+        ):
+
+            # Sanity check for type information
+            if not isinstance(
+                result, tprop.SingleArcVariationalSimulationResults
+            ):
+                continue
+
+            # Extract translational results and verify type
+            simulation = result.dynamics_results
+            if not isinstance(simulation, tprop.SingleArcSimulationResults):
+                continue
+
+            # Update list
+            simulation_results.append(
+                PropagationOutput.from_simulation(simulation, config)
+            )
+
+        # Propagate covariance
+        covariance_history = testa.propagate_covariance(
+            initial_covariance=estimation_output.covariance,
+            state_transition_interface=estimator.state_transition_interface,
+            output_times=estimation_epochs.tolist(),
+        )
+
+        # Return data structure
+        return EstimationResults(
+            best_iteration_index=estimation_output.best_iteration,
+            correlation_matrix=estimation_output.correlations,
+            covariance_matrix=estimation_output.covariance,
+            parameter_history=estimation_output.parameter_history,
+            residual_history=estimation_output.residual_history,
+            estimation_epochs=estimation_epochs,
+            simulation_history=simulation_results,
+            covariance_history=covariance_history,
+        )
 
     @classmethod
     def from_estimation_output(
@@ -57,6 +113,7 @@ class EstimationResults:
             parameter_history=results.parameter_history,
             residual_history=results.residual_history,
             estimation_epochs=epochs,
+            simulation_history=None,
         )
 
     @property
@@ -69,6 +126,15 @@ class EstimationResults:
 
         return self.parameter_history[:, self.best_iteration_index]
 
+    @property
+    def final_propagation_results(self) -> "PropagationOutput":
+
+        if self.simulation_history is None:
+            log.fatal("Simulation history not available")
+            exit(1)
+
+        return self.simulation_history[self.best_iteration_index]
+
     def save_to_file(self, file: Path) -> None:
 
         log.info(f"Saving estimation results in {file}")
@@ -80,6 +146,14 @@ class EstimationResults:
 
     @classmethod
     def from_file(cls, file: Path) -> "EstimationResults":
+
+        if not file.exists():
+            log.error(
+                f"Failed to load estimation results from {file} :"
+                "File not found"
+            )
+            log.error(traceback.extract_stack()[-2])
+            exit(1)
 
         with file.open("rb") as buffer:
             _self = pickle.load(buffer)

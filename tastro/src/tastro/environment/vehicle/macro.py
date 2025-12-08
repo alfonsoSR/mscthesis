@@ -6,6 +6,16 @@ from tudatpy.dynamics.environment_setup import (
 import numpy as np
 from ...logging import log
 import typing
+import traceback
+
+if typing.TYPE_CHECKING:
+    from ...config import CaseSetup
+    from ...config.environment.vehicles import VehicleSetup
+    from ...config.environment.vehicles import (
+        SinglePanelShapeSettings,
+        VehicleShapeSetup,
+        VehicleRadiationTargetSetup,
+    )
 
 
 def front_back_panel_geometry(
@@ -37,7 +47,186 @@ def front_back_panel_geometry(
     return positive_panel, negative_panel
 
 
-def paneled_mex_model() -> tvs.FullPanelledBodySettings:
+def create_single_panel_geometry_from_config(
+    panel_config: "SinglePanelShapeSettings",
+) -> "tvs.BodyPanelGeometrySettings":
+
+    log.debug(f"Geometry {panel_config.panel_id} :: {panel_config.frame}")
+
+    # Define settings for panel geometry
+    return tvs.frame_fixed_panel_geometry(
+        surface_normal=panel_config.normal_direction,
+        area=panel_config.area,
+        frame_orientation=panel_config.frame,
+    )
+
+
+def create_paneled_geometry_from_config(shape_config: "VehicleShapeSetup"):
+
+    # Ensure chosen shape model is paneled
+    if shape_config.model != "paneled":
+        log.fatal(
+            f"Requested generation of paneled geometry with "
+            f"{shape_config.model} shape settings"
+        )
+        log.fatal(traceback.extract_stack()[-2])
+        exit(1)
+
+    # Ensure paneled settings are defined
+    if len(shape_config.paneled_settings) == 0:
+        log.fatal(
+            f"Requested generation of paneled geometry without "
+            f"specifying any panels"
+        )
+        log.fatal(traceback.extract_stack()[-2])
+        exit(1)
+
+    # Generate settings for individual panels and return
+    panel_collection: dict[str, "tvs.BodyPanelGeometrySettings"] = {
+        panel_config.panel_id: create_single_panel_geometry_from_config(
+            panel_config
+        )
+        for panel_config in shape_config.paneled_settings
+    }
+    return panel_collection
+
+
+def create_paneled_reflection_laws_from_config(
+    radiation_config: "VehicleRadiationTargetSetup",
+) -> dict[str, trad.BodyPanelReflectionLawSettings]:
+
+    # Ensure chosen radiation model is paneled
+    if radiation_config.model != "paneled":
+        log.fatal(
+            f"Requested definition of paneled reflection laws with "
+            f"{radiation_config.model} radiation settings"
+        )
+        log.fatal(traceback.extract_stack()[-2])
+        exit(1)
+
+    # Ensure paneled settings are defined
+    if len(radiation_config.paneled_settings) == 0:
+        log.fatal(
+            f"Requested generation of paneled radiation interface without "
+            f"specifying any panels"
+        )
+        log.fatal(traceback.extract_stack()[-2])
+        exit(1)
+
+    # Define reflection laws per panel
+    reflection_laws: dict[str, trad.BodyPanelReflectionLawSettings] = {}
+    for settings in radiation_config.paneled_settings:
+
+        # Define reflection law according to settings
+        reflection_law = trad.specular_diffuse_body_panel_reflection(
+            specular_reflectivity=settings.specular_reflectivity,
+            diffuse_reflectivity=settings.diffuse_reflectivity,
+            with_instantaneous_reradiation=settings.instantaneous_reradiation,
+        )
+
+        # Assign to all affected panels
+        for panel_id in settings.panels:
+
+            log.debug(
+                f"Reflection {panel_id} :: {settings.instantaneous_reradiation}"
+            )
+
+            reflection_laws[panel_id] = reflection_law
+
+    return reflection_laws
+
+
+def create_paneled_rotation_models_from_config(
+    shape_config: "VehicleShapeSetup", base_frame: str
+) -> dict[str, "trots.RotationModelSettings"]:
+
+    # Ensure chosen shape model is paneled
+    if shape_config.model != "paneled":
+        log.fatal(
+            f"Attempted to define panel orientations with "
+            f"{shape_config.model} shape settings"
+        )
+        log.fatal(traceback.extract_stack()[-2])
+        exit(1)
+
+    # Ensure paneled settings are defined
+    if len(shape_config.paneled_settings) == 0:
+        log.fatal(
+            f"Requested generation of paneled geometry without "
+            f"specifying any panels"
+        )
+        log.fatal(traceback.extract_stack()[-2])
+        exit(1)
+
+    # Generate settings for individual panels and return
+    rotation_laws: dict[str, "trots.RotationModelSettings"] = {}
+    for panel_config in shape_config.paneled_settings:
+
+        # Skip if geometry is defined in base frame
+        if panel_config.frame == base_frame:
+            continue
+
+        # Skip if frame is already present
+        if panel_config.frame in rotation_laws:
+            continue
+
+        log.debug(f"Rotation {panel_config.frame} to {base_frame}")
+
+        # Update rotation laws with new frame
+        rotation_laws[panel_config.frame] = trots.spice(
+            base_frame=base_frame, target_frame=panel_config.frame
+        )
+
+    return rotation_laws
+
+
+def create_paneled_model(
+    vehicle_config: "VehicleSetup",
+) -> "tvs.FullPanelledBodySettings":
+
+    # Define geometry
+    panel_collection = create_paneled_geometry_from_config(vehicle_config.shape)
+
+    # Define reflection laws
+    reflection_laws = create_paneled_reflection_laws_from_config(
+        vehicle_config.radiation
+    )
+
+    # Define panel settings
+    panel_settings: list[tvs.BodyPanelSettings] = []
+    for panel_id, geometry in panel_collection.items():
+
+        # Ensure that reflection law is defined for current panel
+        if panel_id not in reflection_laws:
+            log.fatal(f"Reflection law not defined for {panel_id}")
+            log.fatal(traceback.extract_stack()[-2])
+            exit(1)
+
+        # Define settings
+        panel_settings.append(
+            tvs.body_panel_settings(
+                panel_geometry=geometry,
+                panel_reflection_law=reflection_laws[panel_id],
+                panel_type_id=panel_id,
+            )
+        )
+
+    # Define rotation models for all panels
+    rotation_laws = create_paneled_rotation_models_from_config(
+        shape_config=vehicle_config.shape,
+        base_frame=vehicle_config.rotation.target_frame,
+    )
+
+    # Return paneled model
+    return tvs.full_panelled_body_settings(
+        panel_settings=panel_settings,
+        part_rotation_model_settings=rotation_laws,
+    )
+
+
+def paneled_mex_model(
+    vehicle_config: "VehicleSetup",
+) -> tvs.FullPanelledBodySettings:
 
     # Define panels for HGA
     hga_area = 2.270  # OnShape
@@ -152,17 +341,17 @@ def paneled_mex_model() -> tvs.FullPanelledBodySettings:
     sp_reflection_law = trad.specular_diffuse_body_panel_reflection(
         specular_reflectivity=0.05,
         diffuse_reflectivity=0.05,
-        with_instantaneous_reradiation=True,
+        with_instantaneous_reradiation=False,
     )
     bus_reflection_law = trad.specular_diffuse_body_panel_reflection(
         specular_reflectivity=0.1,
         diffuse_reflectivity=0.3,
-        with_instantaneous_reradiation=True,
+        with_instantaneous_reradiation=False,
     )
     hga_reflection_law = trad.specular_diffuse_body_panel_reflection(
-        specular_reflectivity=0.9,
-        diffuse_reflectivity=0.05,
-        with_instantaneous_reradiation=True,
+        specular_reflectivity=0.3,
+        diffuse_reflectivity=0.2,
+        with_instantaneous_reradiation=False,
     )
 
     # sp_reflection_law = trad.lambertian_body_panel_reflection(1 - 0.72)

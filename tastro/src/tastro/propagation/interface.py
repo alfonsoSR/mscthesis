@@ -5,15 +5,20 @@ from tudatpy.dynamics.propagation_setup import (
     create_acceleration_models,
     propagator as tprops,
     acceleration as tacs,
-    dependent_variable as dvar,
+    dependent_variable as tdvar,
 )
+from tudatpy.dynamics import simulator as tsim, propagation as tprop
 from tudatpy.interface import spice
 import numpy as np
 from ..logging import log
-from ..io import EstimationResults
+from ..io import PropagationOutput
+import pickle
 
 if TYPE_CHECKING:
     from tudatpy.dynamics.environment import SystemOfBodies
+    from tudatpy.dynamics.propagation_setup.propagator import (
+        TranslationalStatePropagatorSettings,
+    )
 
 
 def translational_propagator_settings_from_config(
@@ -71,6 +76,15 @@ def translational_propagator_settings_from_config(
         central_bodies=central_bodies,
     )
 
+    # # Dependent variables
+    # dependent_variables = [
+    #     tdvar.single_acceleration(
+    #         acceleration_type=tacs.AvailableAcceleration.aerodynamic_type,
+    #         body_exerting_acceleration="Mars",
+    #         body_undergoing_acceleration="MEX",
+    #     ),
+    # ]
+
     # Return propagator settings
     propagator_settings = tprops.translational(
         central_bodies=central_bodies,
@@ -81,7 +95,35 @@ def translational_propagator_settings_from_config(
         integrator_settings=integrator_settings,
         termination_settings=termination_condition,
         propagator=config.propagation.integrator.general.state_representation,
+        # output_variables=dependent_variables,
     )
 
     log.info("Generated settings for translational propagator")
     return propagator_settings
+
+
+def propagate_translational_dynamics(
+    bodies: "SystemOfBodies",
+    propagator: "TranslationalStatePropagatorSettings",
+    config: "CaseSetup",
+) -> "PropagationOutput":
+
+    log.info("Propagating translational dynamics")
+
+    # Create simulator for translational dynamics
+    dynamics_simulator = tsim.create_dynamics_simulator(
+        bodies=bodies,
+        propagator_settings=propagator,
+        simulate_dynamics_on_creation=True,
+    )
+
+    # Pack results in data structure and return
+    assert isinstance(dynamics_simulator, tsim.SingleArcSimulator)
+    simulation_results = dynamics_simulator.propagation_results
+
+    # with open("dependent_variables.pkl", "wb") as buffer:
+
+    #     pickle.dump(dynamics_simulator.dependent_variable_history, buffer)
+
+    assert isinstance(simulation_results, tprop.SingleArcSimulationResults)
+    return PropagationOutput.from_simulation(simulation_results, config)

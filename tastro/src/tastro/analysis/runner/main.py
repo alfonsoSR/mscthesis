@@ -26,6 +26,7 @@ from tudatpy.estimation.observations_setup import (
 from ...logging import log
 from ..core import AnalysisManagerBase
 from pathlib import Path
+import multiprocessing as mp
 
 import typing
 
@@ -51,11 +52,16 @@ class SimulationManager(AnalysisManagerBase[CommandLineInputRunner]):
 
     def run_simulations(self) -> None:
 
-        for source_dir in self.user_input.source_dirs:
+        # Prepare input for parallel execution
+        runner_input = [
+            (source, self.user_input.propagate, self.user_input.estimate)
+            for source in self.user_input.source_dirs
+        ]
 
-            runner_single(
-                source_dir, self.user_input.propagate, self.user_input.estimate
-            )
+        # Run in parallel
+        with mp.Pool(4) as pool:
+
+            pool.starmap(runner_single, runner_input)
 
         return None
 
@@ -136,12 +142,13 @@ def perform_estimation(
         observations_and_times=observations,
         convergence_checker=testa.estimation_convergence_checker(
             maximum_iterations=5,
-            minimum_residual_change=0.01,
+            minimum_residual_change=0.001,
             number_of_iterations_without_improvement=2,
         ),
     )
     estimation_input.define_estimation_settings(
-        reintegrate_equations_on_first_iteration=True
+        reintegrate_equations_on_first_iteration=True,
+        save_state_history_per_iteration=True,
     )
 
     # Perform the estimation
@@ -150,8 +157,10 @@ def perform_estimation(
     assert isinstance(estimation_results, testa.EstimationOutput)
 
     log.info("Saving estimation results")
-    return nio.EstimationResults.from_estimation_output(
-        estimation_results, observations
+    return nio.EstimationResults.from_output_and_observations(
+        estimation_output=estimation_results,
+        observations=observations,
+        config=config,
     )
 
     # results.save_to_file(self.source_dir / "estimation.pkl")

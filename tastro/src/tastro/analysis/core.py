@@ -5,6 +5,29 @@ from ..config import CaseSetup
 from tudatpy.astro import time_representation as ttime
 from pathlib import Path
 from nastro import graphics as ng
+from typing import Callable
+import multiprocessing as mp
+
+
+class ExecutionManager[T: "CommandLineInput"]:
+    """Manager for the concurrent execution of analyses"""
+
+    def __init__(self, user_input: T) -> None:
+
+        # Save source directories
+        self.source_dirs: list[Path] = user_input.source_dirs
+
+        return None
+
+    def concurrent_execution(self, function: Callable) -> None:
+
+        if len(self.source_dirs) > 1:
+            with mp.Pool() as pool:
+                pool.map(function, self.source_dirs)
+        else:
+            function(self.source_dirs[0])
+
+        return None
 
 
 class AnalysisManagerBase[T: "CommandLineInput"]:
@@ -45,19 +68,24 @@ class AnalysisFigureManagerBase[T: "CLInputFigure"](AnalysisManagerBase[T]):
         # Define defaults for configuration of figures
         self.default_canvas_size = (8, 6)
 
+        # Define iterator for source directories
+        self.sources_iterator = iter(self.user_input.source_dirs)
+
         return None
 
     def get_directory_id(self, directory: Path) -> str:
 
         return str(directory.relative_to(self.user_input.base_dir))
 
-    def generate_canvas_setup(self, name: str) -> ng.PlotSetup:
+    def generate_canvas_setup(
+        self, name: str, save_in_base: bool = True
+    ) -> ng.PlotSetup:
 
         # Adapt output directory based on number of sources
-        if len(self.user_input.source_dirs) > 1:
+        if (len(self.user_input.source_dirs) > 1) and save_in_base:
             outdir = self.user_input.base_dir
         else:
-            outdir = self.source_dir
+            outdir = next(self.sources_iterator)
 
         # Update name with modifier
         if self.user_input.name_modifier != "":
@@ -68,7 +96,8 @@ class AnalysisFigureManagerBase[T: "CLInputFigure"](AnalysisManagerBase[T]):
             )
 
         return ng.PlotSetup(
-            canvas_size=self.default_canvas_size,
+            # canvas_size=self.default_canvas_size,
+            canvas_size=(6, 6),
             show=self.user_input.show,
             save=self.user_input.save,
             dir=outdir,
@@ -82,6 +111,7 @@ class AnalysisFigureManagerBase[T: "CLInputFigure"](AnalysisManagerBase[T]):
         return ng.PlotSetup(
             xlabel=f"Hours past {self.ref_epoch_isot}",
             ylabel=ylabel,
-            rlabel=r"$d_{mars}$ [$x10^{-7}$ m]" if right_axis else None,
+            rlabel=r"d$_{mars}$" if right_axis else None,
             scilimits=(-2, 3),
+            show_tick_labels_r=False if right_axis else True,
         )

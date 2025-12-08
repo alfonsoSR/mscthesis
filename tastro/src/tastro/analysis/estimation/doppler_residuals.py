@@ -8,6 +8,9 @@ from ...io import EstimationResults, PropagationOutput
 from nastro import types as nt, graphics as ng
 import numpy as np
 from ...logging import log
+from pathlib import Path
+from matplotlib import pyplot as plt
+from ...config import CaseSetup
 
 
 class ResidualHistoryManager(AnalysisFigureManagerBase[CLInputFigure]):
@@ -225,16 +228,14 @@ def show_doppler_residuals(user_input: CLInputFigure) -> None:
     return None
 
 
-def show_estimation_summary(user_input: CommandLineInput) -> None:
+def show_estimation_summary_single(source_dir: Path) -> None:
 
     # Define path to output file and show info
-    output_file = user_input.source_dir / "estimation-summary.log"
+    output_file = source_dir / "estimation-summary.log"
     log.info(f"Writing estimation summary to {output_file}")
 
     # Load estimation output
-    estimation = EstimationResults.from_file(
-        user_input.source_dir / "estimation.pkl"
-    )
+    estimation = EstimationResults.from_file(source_dir / "estimation.pkl")
 
     with output_file.open("w") as buffer:
 
@@ -276,6 +277,122 @@ def show_estimation_summary(user_input: CommandLineInput) -> None:
             [f"{item:.5e}" for item in final_parameters]
         )
 
+        # Get difference between initial and final parameters
+        initial_parameters = estimation.parameter_history[:, 0]
+        final_parameter_update = final_parameters - initial_parameters
+        final_parameter_update_string = " ".join(
+            [f"{item:.5e}" for item in final_parameter_update]
+        )
+
         # Show final residual and parameters
         buffer.write(f"Final residual: {final_rms:.7f}\n")
+        buffer.write(
+            f"Total parameter update: {final_parameter_update_string}\n"
+        )
         buffer.write(f"Final parameters: {final_parameters_string}\n")
+
+
+def show_correlation_matrix_single(source_dir: Path) -> None:
+
+    # Load estimation results
+    estimation = EstimationResults.from_file(source_dir / "estimation.pkl")
+
+    # Configuration
+    config = CaseSetup.from_config_file(source_dir / "configuration.yaml")
+    param_config = config.estimation.parameters
+
+    # Estimated parameters
+    parameters = ["$x$", "$y$", "$z$", r"$\dot x$", r"$\dot y$", r"$\dot z$"]
+    if param_config.drag_coefficient:
+        parameters.append("$C_D$")
+    if param_config.arcwise_drag_coefficient:
+        parameters += ["$C_{D, 1}$", "$C_{D,2}$", "$C_{D,3}$", "$C_{D,4}$"]
+    if param_config.radiation_pressure_coefficient:
+        parameters.append("$K_1$")
+
+    # assert estimation.covariance_history is not None
+    # formal_errors = CartesianStateUncertainty.from_covariance_history(
+    #     estimation.covariance_history
+    # )
+    # formal_error_epochs = np.array(list(estimation.covariance_history.keys()))
+
+    # propagation = estimation.final_propagation_results
+    # cstate = nt.CartesianState(*propagation.cstate_j2000.T)
+    # rstate = nt.CartesianState(*propagation.rstate_j2000.T)
+    # residual = cstate - rstate
+
+    # with ng.SingleAxis() as fig:
+
+    #     for term in ("x", "y", "z"):
+
+    #         fig.line(propagation.epochs, getattr(residual, term), label=term)
+    #         fig.line(
+    #             formal_error_epochs, 0 * formal_error_epochs, color="w", alpha=0
+    #         )
+    #         fig.boundary(3.0 * getattr(formal_errors, term), alpha=0.8)
+
+    # exit(0)
+
+    correlation = estimation.covariance_matrix
+
+    # print(covariance.shape)
+    # exit(0)
+
+    # # Get correlation matrix
+    # correlation = estimation.correlation_matrix
+
+    setup = ng.PlotSetup(
+        aspect="equal",
+        canvas_size=(6, 6),
+        grid=False,
+        minor_ticks=False,
+        canvas_title="Correlation matrix",
+    )
+
+    fig, ax = plt.subplots(figsize=(10, 10))
+    ax.set_title("Correlation matrix")
+    foo = ax.imshow(correlation, aspect="equal", cmap="GnBu")
+    ax.set_xticks([idx for idx in range(len(parameters))], labels=parameters)
+    ax.set_yticks([idx for idx in range(len(parameters))], labels=parameters)
+    fig.colorbar(mappable=foo)
+    for i in range(correlation.shape[0]):
+        # for j in range(correlation.shape[1]):
+
+        val = np.sqrt(correlation[i, i])
+        # dcor = 1 - val
+
+        ax.text(
+            x=i,
+            y=i,
+            s=f"{val:.3e}",
+            ha="center",
+            va="center",
+            color="k",
+        )  # type: ignore
+
+    fig.savefig(source_dir / "correlation_matrix.png")
+    plt.show()
+
+    # with ng.SingleAxis(setup) as fig:
+
+    #     fig.imshow(np.abs(correlation))
+    #     fig.axes["left"].set_xticks(
+    #         [idx for idx in range(len(parameters))], labels=parameters
+    #     )
+    #     fig.axes["left"].set_yticks(
+    #         [idx for idx in range(len(parameters))], labels=parameters
+    #     )
+
+    # for i in range(correlation.shape[0]):
+    #     for j in range(correlation.shape[1]):
+
+    #         fig.axes["left"].text(
+    #             x=i,
+    #             y=j,
+    #             s=f"{correlation[i, j]:.2e}",
+    #             ha="center",
+    #             va="center",
+    #             color="k",
+    #         )  # type: ignore
+
+    return None

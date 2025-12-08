@@ -1,7 +1,7 @@
 from ...io.command_line.runner import CommandLineParserRunner
 from ...io.command_line.core import CLParser
 from .main import SimulationManager
-from .prefit import calculate_prefit_residuals
+from .prefit import PrefitManager
 
 
 def runner_cli() -> None:
@@ -15,6 +15,6 @@ def runner_cli() -> None:
 def calculate_prefit_residuals_cli() -> None:
 
     user_input = CLParser().parse_args()
-    calculate_prefit_residuals(user_input)
+    PrefitManager(user_input).calculate_prefit_residuals()
 
     return None

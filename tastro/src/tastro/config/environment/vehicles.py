@@ -1,5 +1,6 @@
 from ..core import SetupBase
 from tudatpy.astro import time_representation as ttime
+import numpy as np
 
 from tudatpy.dynamics.environment_setup import aerodynamic_coefficients as taero
 
@@ -28,11 +29,28 @@ class CannonballRadiationTargetSetup(SetupBase):
     radiation_pressure_coefficient: float
 
 
+class PanelReflectionLawSetup(SetupBase):
+
+    panels: list[str]
+    specular_reflectivity: float
+    diffuse_reflectivity: float
+    instantaneous_reradiation: bool
+
+
+class PaneledRadiationTargetSetup(SetupBase):
+
+    instantaneous_reradiation: bool = True
+    present: bool = True
+
+
 class VehicleRadiationTargetSetup(SetupBase):
 
     present: bool
     model: str
     cannonball_settings: CannonballRadiationTargetSetup
+    paneled_settings: list[PanelReflectionLawSetup]
+
+    # paneled_settings: PaneledRadiationTargetSetup
 
 
 class VehicleSystemsSetup(SetupBase):
@@ -43,10 +61,19 @@ class VehicleSystemsSetup(SetupBase):
     mass: float
 
 
+class SinglePanelShapeSettings(SetupBase):
+
+    panel_id: str
+    area: float
+    frame: str
+    normal_direction: np.ndarray
+
+
 class VehicleShapeSetup(SetupBase):
 
     present: bool
     model: str
+    paneled_settings: list[SinglePanelShapeSettings]
 
 
 class CannonballAerodynamicsSetup(SetupBase):

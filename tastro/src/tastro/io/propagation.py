@@ -9,6 +9,8 @@ import numpy as np
 from dataclasses import dataclass
 import pickle
 from pathlib import Path
+from ..logging import log
+import traceback
 
 
 @dataclass
@@ -33,11 +35,20 @@ class PropagationOutput:
     def state_history(self) -> dict[ttime.Time, np.ndarray]:
 
         return {
-            epoch: cstate for (epoch, cstate) in zip(self.epochs, self.cstate_j2000)
+            epoch: cstate
+            for (epoch, cstate) in zip(self.epochs, self.cstate_j2000)
         }
 
     @staticmethod
     def from_file(file: Path) -> "PropagationOutput":
+
+        if not file.exists():
+            log.fatal(
+                f"Failed to load propagation results from {file}: "
+                "File not found"
+            )
+            log.fatal(traceback.extract_stack()[-2])
+            exit(1)
 
         with file.open("rb") as buffer:
             _self = pickle.load(buffer)
@@ -74,7 +85,9 @@ class PropagationOutput:
         propagation_epochs = np.array(list(simulation.state_history.keys()))
 
         # Propagated state vector (Cartesian global frame)
-        propagated_state_j2000 = np.array(list(simulation.state_history.values()))
+        propagated_state_j2000 = np.array(
+            list(simulation.state_history.values())
+        )
 
         # Get states in RSW frame (ephemerides)
         reference_state_rsw = np.zeros_like(reference_state_j2000)
@@ -87,12 +100,16 @@ class PropagationOutput:
             # Reference state in RSW
             _refpos_rsw = rotation_matrix @ rstate[:3]
             _refvel_rsw = rotation_matrix @ rstate[3:]
-            reference_state_rsw[idx] = np.array([_refpos_rsw, _refvel_rsw]).flatten()
+            reference_state_rsw[idx] = np.array(
+                [_refpos_rsw, _refvel_rsw]
+            ).flatten()
 
             # Propagated state in RSW
             _ppos_rsw = rotation_matrix @ propagated_state_j2000[idx][:3]
             _pvel_rsw = rotation_matrix @ propagated_state_j2000[idx][3:]
-            propagated_state_rsw[idx] = np.array([_ppos_rsw, _pvel_rsw]).flatten()
+            propagated_state_rsw[idx] = np.array(
+                [_ppos_rsw, _pvel_rsw]
+            ).flatten()
 
         return PropagationOutput(
             epochs=propagation_epochs,
@@ -101,5 +118,7 @@ class PropagationOutput:
             cstate_rsw=propagated_state_rsw,
             rstate_rsw=reference_state_rsw,
             number_of_function_evaluations=simulation.total_number_of_function_evaluations,
-            ustate=np.array(list(simulation.unprocessed_state_history.values())).T,
+            ustate=np.array(
+                list(simulation.unprocessed_state_history.values())
+            ).T,
         )
