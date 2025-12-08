@@ -18,6 +18,7 @@ _version.py
 prefit
 proptools
 code
+tastro/docs/build
 
 # Python scripts
 makecalc.py
