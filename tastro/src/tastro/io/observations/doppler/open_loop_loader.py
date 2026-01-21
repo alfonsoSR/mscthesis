@@ -31,7 +31,9 @@ def load_open_loop_doppler_observations_from_config(
     log.info("Loading open-loop Doppler observations")
 
     # Initialize container of observations per station
-    observations_per_station: dict[str, dict[ttime.Time, float]] = {}
+    epochs_per_station: dict[str, list[ttime.Time]] = {}
+    observations_per_station: dict[str, list[float]] = {}
+    noise_per_station: dict[str, list[float]] = {}
 
     # Loop over sources
     for fdet in config.estimation.observations.open_loop.sources:
@@ -41,18 +43,26 @@ def load_open_loop_doppler_observations_from_config(
 
         # Initialize IFMS loader and extract observations
         loader = FdetsLoader(fdet.path, fdet.station)
-        observations = loader.load_raw_observations()
+        epochs = loader.load_observation_epochs()
+        observations = loader.load_observation_values()
+        noise = loader.load_observation_noise()
 
         # Identify station and update container
-        if fdet.station not in observations_per_station:
+        if fdet.station not in epochs_per_station:
+            epochs_per_station[fdet.station] = epochs
             observations_per_station[fdet.station] = observations
+            noise_per_station[fdet.station] = noise
         else:
-            observations_per_station[fdet.station].update(observations)
+            epochs_per_station[fdet.station] += epochs
+            observations_per_station[fdet.station] += observations
+            noise_per_station[fdet.station] += noise
 
     # Pack observations into data structures and return
     return {
-        station: OpenLoopDopplerObservationRecord.from_observation_history(
-            history
+        station: OpenLoopDopplerObservationRecord(
+            epochs=np.array(epochs_per_station[station], dtype=ttime.Time),
+            observations=np.array(station_observations, dtype=float),
+            noise=np.array(noise_per_station[station], dtype=float),
         )
-        for station, history in observations_per_station.items()
+        for station, station_observations in observations_per_station.items()
     }

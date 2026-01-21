@@ -30,6 +30,8 @@ class CaseSetup(SetupBase):
     perform_propagation: bool = False
     evaluate_accelerations: bool = False
 
+    base_directory: Path | None = None
+
     @classmethod
     def from_config_file(cls, config_path: Path) -> "CaseSetup":
 
@@ -37,6 +39,9 @@ class CaseSetup(SetupBase):
 
         raw_config = yaml.safe_load(config_path.open("r"))
         output = cls.from_raw(raw_config)
+
+        # Set base directory
+        output.base_directory = config_path.parent
 
         log.info(f"Finished loading configuration")
 

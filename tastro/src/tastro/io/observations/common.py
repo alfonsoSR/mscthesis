@@ -12,7 +12,12 @@ if TYPE_CHECKING:
 
 class RawObservationRecord(metaclass=abc.ABCMeta):
 
-    def __init__(self, epochs: np.ndarray, observations: np.ndarray) -> None:
+    def __init__(
+        self,
+        epochs: np.ndarray,
+        observations: np.ndarray,
+        noise: np.ndarray | None = None,
+    ) -> None:
 
         # Ensure that epochs are Time objects
         if not isinstance(epochs[0], ttime.Time):
@@ -22,7 +27,13 @@ class RawObservationRecord(metaclass=abc.ABCMeta):
 
         # Sort observations and epochs chronologicaly
         idx_order = np.argsort([epoch.to_float() for epoch in epochs])
-        self.epochs = epochs[idx_order]
-        self.observations = observations[idx_order]
+        self.epochs: np.ndarray = epochs[idx_order]
+        self.observations: np.ndarray = observations[idx_order]
+
+        # Load and sort noise
+        if noise is None:
+            self.noise: np.ndarray = np.zeros_like(self.observations)
+        else:
+            self.noise: np.ndarray = noise[idx_order]
 
         return None

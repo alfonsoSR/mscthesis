@@ -15,6 +15,7 @@ from tudatpy.estimation.observations_setup import (
 from tudatpy.dynamics.environment import SystemOfBodies
 from .common import ObservationModelSettingsGenerator
 from ..logging import log
+import traceback
 from ..io.observations import load_closed_loop_doppler_observations_from_config
 import numpy as np
 
@@ -22,6 +23,14 @@ import numpy as np
 class ClosedLoopSettingsGenerator(
     ObservationModelSettingsGenerator[ClosedLoopDopplerSetup]
 ):
+
+    @property
+    def observable_type_id(self) -> str:
+        return "closed_loop"
+
+    @property
+    def observable_type(self) -> toms.ObservableType:
+        return toms.ObservableType.dsn_n_way_averaged_doppler_type
 
     def filter_settings(self) -> list[tobsp.ObservationFilterBase]:
 
@@ -113,7 +122,7 @@ class ClosedLoopSettingsGenerator(
             # Create observation set
             values = [np.array([x]) for x in station_data.observations]
             observation_set = tobs.single_observation_set(
-                observable_type=toms.ObservableType.dsn_n_way_averaged_doppler_type,
+                observable_type=self.observable_type,
                 link_definition=link_definition,
                 observations=values,
                 observation_times=station_data.epochs.tolist(),
@@ -123,10 +132,11 @@ class ClosedLoopSettingsGenerator(
 
             # Filter out outliers
             for _filter in filters:
-                observation_set.filter_observations(_filter)
+                observation_set.filter_observations(_filter, False)
 
-            print("Setting noise to 4e-3")
-            observation_set.set_constant_weight(1.0 / ((4e-3 * 4e-3)))
+            # print("Setting noise to 4e-3")
+            print("Not using noise")
+            # observation_set.set_constant_weight(1.0 / ((4e-3 * 4e-3)))
 
             # Display debug information for station
             nobs_raw = len(station_data.observations)
@@ -208,3 +218,13 @@ class ClosedLoopSettingsGenerator(
             for link_definition in link_definitions
         ]
         return observation_models
+
+    def apply_residual_based_filter(
+        self, collection: tobs.ObservationCollection
+    ) -> tobs.ObservationCollection:
+
+        log.fatal(
+            "Residual-based filtering not available for closed-loop observations"
+        )
+        log.fatal(traceback.extract_stack()[-2])
+        exit(1)

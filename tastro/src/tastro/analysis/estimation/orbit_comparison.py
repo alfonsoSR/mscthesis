@@ -63,18 +63,18 @@ class OrbitComparisonManager(AnalysisFigureManagerBase[CLInputFigure]):
                 log.fatal(traceback.extract_stack()[-2])
                 exit(1)
 
-            # Get covariance history
-            if estimation.covariance_history is None:
-                log.warning(f"Covariance history not available for {source}")
-                self.uncertainties[source] = None
-                self.est_epochs[source] = estimation.epochs
-            else:
-                self.uncertainties[source] = (
-                    CartesianStateUncertainty.from_covariance_history(
-                        estimation.covariance_history
-                    )
-                )
-                self.est_epochs[source] = estimation.epochs
+            # # Get covariance history
+            # if estimation.covariance_history is None:
+            #     log.warning(f"Covariance history not available for {source}")
+            #     self.uncertainties[source] = None
+            #     self.est_epochs[source] = estimation.epochs
+            # else:
+            #     self.uncertainties[source] = (
+            #         CartesianStateUncertainty.from_covariance_history(
+            #             estimation.covariance_history
+            #         )
+            #     )
+            #     self.est_epochs[source] = estimation.epochs
 
         # Save frame choice
         self.frame = frame
@@ -139,9 +139,9 @@ class OrbitComparisonManager(AnalysisFigureManagerBase[CLInputFigure]):
 
                 # Get dt, residuals and distance to Mars
                 dt = (epochs - self.ref_epoch) / 3600.0
-                dt_est = (self.est_epochs[source] - self.ref_epoch) / 3600.0
+                # dt_est = (self.est_epochs[source] - self.ref_epoch) / 3600.0
                 residual = self.cstates[source] - self.rstates[source]
-                uncertainty = self.uncertainties[source]
+                # uncertainty = self.uncertainties[source]
                 dmars = self.rstates[source].r_mag * 1e-7
 
                 for idx, component in enumerate(subfigures):

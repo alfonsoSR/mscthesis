@@ -3,6 +3,7 @@ from ....logging import log
 import traceback
 from tudatpy.astro import time_representation as ttime
 from tudatpy import data as tdata
+import numpy as np
 
 
 class FdetsLoader:
@@ -34,9 +35,12 @@ class FdetsLoader:
 
         return None
 
-    def load_raw_observations(self) -> dict[ttime.Time, float]:
+    def load_observation_epochs(self) -> list[ttime.Time]:
 
         # Get observation epochs in TDB
+        log.warning(
+            "Ground station position not considered in UTC-TDB of Fdets"
+        )
         observation_epochs = [
             self.time_converter.convert_time_object(
                 input_scale=ttime.TimeScales.utc_scale,
@@ -47,11 +51,29 @@ class FdetsLoader:
             )
             for epoch in self.data["utc_datetime_string"]
         ]
+        return observation_epochs
+
+    def load_observation_values(self) -> list[float]:
+
+        return [
+            8.412e9 + float(value)
+            for value in self.data["doppler_measured_frequency_hz"]
+        ]
+
+    def load_observation_noise(self) -> list[float]:
+
+        return [float(value) for value in self.data["doppler_noise_hz"]]
+
+    def load_raw_observations(self) -> dict[ttime.Time, float]:
+
+        # Get observation epochs in TDB
+        observation_epochs = self.load_observation_epochs()
 
         # Return observation history
+        log.warning("The reference frequency of the Fdets is hard coded")
         return {
-            epoch: 8.412e9 + float(value)
+            epoch: value
             for (epoch, value) in zip(
-                observation_epochs, self.data["doppler_measured_frequency_hz"]
+                observation_epochs, self.load_observation_values()
             )
         }

@@ -78,6 +78,7 @@ class EstimationResults:
             )
 
         # Propagate covariance
+        print(f"Number of epochs: {len(estimation_epochs)}")
         covariance_history = testa.propagate_covariance(
             initial_covariance=estimation_output.covariance,
             state_transition_interface=estimator.state_transition_interface,
@@ -209,6 +210,11 @@ class PrefitResults:
 
     @classmethod
     def from_file(cls, file_name: Path) -> "PrefitResults":
+
+        if not file_name.exists():
+            log.fatal(f"Failed to load pre-fit results: {file_name} not found")
+            log.fatal(traceback.extract_stack()[-2])
+            exit(1)
 
         with file_name.open("rb") as buffer:
             output = pickle.load(buffer)

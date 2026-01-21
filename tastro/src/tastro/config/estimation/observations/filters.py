@@ -20,8 +20,18 @@ class BetweenEpochsFilterSetup(SetupBase):
     station: str = "all"
 
 
+class ResidualBasedFilterSetup(SetupBase):
+
+    sigmas: float
+    positive_offset: float
+    splitter_value: ttime.Time
+    number_of_iterations: int
+    station: str = "all"
+
+
 class FiltersSetup(SetupBase):
 
     present: bool
     absolute_value: list[AbsoluteFilterSetup]
     between_epochs: list[BetweenEpochsFilterSetup]
+    residual_based: list[ResidualBasedFilterSetup]

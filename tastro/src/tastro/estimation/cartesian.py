@@ -8,15 +8,28 @@ from tudatpy.estimation.observable_models_setup import (
 from tudatpy.dynamics.environment import SystemOfBodies
 from tudatpy.estimation import observations as tobs
 from ..logging import log
+import traceback
 from ..io import PropagationOutput
 import numpy as np
 
 
-class CartesianSettingsGenerator(ObservationModelSettingsGenerator[CartesianSetup]):
+class CartesianSettingsGenerator(
+    ObservationModelSettingsGenerator[CartesianSetup]
+):
+
+    @property
+    def observable_type_id(self) -> str:
+        return "cartesian"
+
+    @property
+    def observable_type(self) -> toms.ObservableType:
+        return toms.ObservableType.relative_position_observable_type
 
     def observation_collection(self) -> tobs.ObservationCollection:
 
-        log.info("Generating observation collection from cartesian observations")
+        log.info(
+            "Generating observation collection from cartesian observations"
+        )
 
         # Cartesian link definitions
         link_definitions = self.link_definitions()
@@ -45,7 +58,7 @@ class CartesianSettingsGenerator(ObservationModelSettingsGenerator[CartesianSetu
             # Generate single observation set
             observation_collection_contents.append(
                 tobs.single_observation_set(
-                    observable_type=toms.ObservableType.relative_position_observable_type,
+                    observable_type=self.observable_type,
                     link_definition=link_definitions[source.link],
                     observations=cartesian_positions,
                     observation_times=raw_observations.epochs.tolist(),
@@ -85,3 +98,12 @@ class CartesianSettingsGenerator(ObservationModelSettingsGenerator[CartesianSetu
             for link_definition in link_definitions
         ]
         return observation_models
+
+    def apply_residual_based_filter(
+        self, collection: tobs.ObservationCollection
+    ) -> tobs.ObservationCollection:
+        log.fatal(
+            "Residual-based filtering is not available for cartesian observations"
+        )
+        log.fatal(traceback.extract_stack()[-2])
+        exit(1)

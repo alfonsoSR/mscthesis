@@ -3,6 +3,8 @@ from tudatpy.dynamics import (
     parameters_setup as tpars,
     parameters as tpar,
 )
+from nastro import graphics as ng
+import copy
 from tudatpy.dynamics.propagation import (
     SimulationResults,
     SingleArcSimulationResults,
@@ -14,7 +16,9 @@ from tudatpy.interface import spice
 from tudatpy.estimation.observable_models_setup import (
     light_time_corrections as tlight,
     model_settings as toms,
+    links as tlinks,
 )
+from tudatpy.estimation.observations import observations_processing as tobsp
 from tudatpy.estimation.observations_setup import (
     observations_simulation_settings as tosim,
 )
@@ -26,11 +30,15 @@ from ..config import CaseSetup
 from ..logging import log
 from .cartesian import CartesianSettingsGenerator
 from .closed_loop import ClosedLoopSettingsGenerator
-from .open_loop import OpenLoopSettingsGenerator
+from .open_loop import OpenLoopSettingsGenerator, RESIDUAL_FILTERING_OFFSET
 from .common import ObservationModelSettingsGenerator
 from typing import Type, TYPE_CHECKING
 from tudatpy.astro import time_representation as ttime
 from ..io import EstimationResults, PrefitResults
+import traceback
+from scipy.signal import find_peaks
+import numpy as np
+from nastro import graphics as ng
 
 if TYPE_CHECKING:
     from tudatpy.dynamics.environment import SystemOfBodies
@@ -66,29 +74,23 @@ class EstimationManager:
             # Update generators
             self.generators[model] = generator("", setup, config)
 
-        # # Flags
-        # self.closed_loop_present = (
-        #     self.config.estimation.observation_models.closed_loop.present
-        # )
-        # self.cartesian_present = (
-        #     self.config.estimation.observation_models.cartesian.present
-        # )
-        # self.open_loop_present = (
-        #     self.config.estimation.observation_models.open_loop.present
-        # )
+        # Initialize estimation time range from propagation limits
+        self.__time_boundaries: tuple[ttime.Time, ttime.Time] = (
+            self.config.time.initial_epoch,
+            self.config.time.final_epoch,
+        )
 
-        # # Initialize model settings generators
-        # self.cartesian_generator = CartesianSettingsGenerator(
-        #     "", config.estimation.observation_models.cartesian, config
-        # )
-        # self.closed_loop_generator = ClosedLoopSettingsGenerator(
-        #     "", config.estimation.observation_models.closed_loop, config
-        # )
-        # self.open_loop_generator = OpenLoopSettingsGenerator(
-        #     "",
-        #     config.estimation.observation_models.open_loop,
-        #     config,
-        # )
+        # Initialize container for link ends per observable type
+        self.__links_per_observable: (
+            dict[
+                toms.ObservableType,
+                list[dict[tlinks.LinkEndType, tlinks.LinkEndId]],
+            ]
+            | None
+        ) = None
+
+        # Initialize count of estimated biases
+        self.__estimated_biases: int = 0
 
         return None
 
@@ -107,8 +109,20 @@ class EstimationManager:
                     generator.observation_collection()
                 )
 
+        # Merge observation collections
+        observations = tobs.merge_observation_collections(
+            observation_collections
+        )
+
+        # Remove empty observation subsets
+        observations.remove_empty_observation_sets()
+
+        # Update time boundaries of the estimation
+        self.__time_boundaries = observations.time_bounds_time_object
+        self.__links_per_observable = observations.link_ends_per_observable_type
+
         # Return merged observation collections
-        return tobs.merge_observation_collections(observation_collections)
+        return observations
 
     def observation_models(
         self, observations: tobs.ObservationCollection
@@ -162,16 +176,63 @@ class EstimationManager:
         # Drag coefficient
         if self.config.estimation.parameters.arcwise_drag_coefficient:
 
-            log.debug("Estimation of arcwise drag coefficient")
+            # Get distance to central body over estimation
+            center = self.config.environment.general.center
+            target = self.config.environment.general.spacecraft
+            __step = ttime.Time(60.0)  # One minute
+            epochs: list[ttime.Time] = np.arange(
+                self.__time_boundaries[0],
+                self.__time_boundaries[1] + __step,
+                __step,
+            ).tolist()
+            x_pos = np.array(
+                [
+                    spice.get_body_cartesian_position_at_epoch(
+                        target_body_name=target,
+                        observer_body_name=center,
+                        reference_frame_name="J2000",
+                        aberration_corrections="None",
+                        ephemeris_time=epoch,
+                    )
+                    for epoch in epochs
+                ]
+            )
+            center_distance = np.linalg.norm(x_pos, axis=-1)
 
-            t0 = self.config.propagation.integrator.general.custom_start_epoch
-            deltas = [-9.5, -2.5, 4.5, 11.5]
-            times = [t0 + ttime.Time(dt * 3600.0) for dt in deltas]
+            # Find peaks of center distance and associated epochs
+            peak_indices, _ = find_peaks(center_distance)
+            cd_epochs: list[ttime.Time] = [epochs[idx] for idx in peak_indices]
 
+            # # Add initial or final epochs based on direction of propagation
+            # match self.config.propagation.integrator.general.starting_point:
+
+            #     # Add arc between t0 and first apoapsis
+            #     case "start":
+            #         cd_epochs = [self.__time_boundaries[0]] + cd_epochs
+
+            #     # Add arc between last apoapsis and tend
+            #     case "end":
+            #         cd_epochs = cd_epochs + [self.__time_boundaries[-1]]
+
+            #     # Special cases when propagating backwards and forwards
+            #     # TODO: Ensure arc between start and closest limit
+            #     case _:
+            #         log.warning(
+            #             "Potentially incorrect handling of CD per orbit"
+            #         )
+
+            # Log estimated parameters
+            for epoch in cd_epochs:
+                epoch_str = ttime.DateTime.from_epoch_time_object(
+                    epoch
+                ).to_iso_string(add_T=True, number_of_digits_seconds=0)
+                log.debug(f"Estimation of drag coefficient at {epoch_str}")
+
+            # Define estimation of C_D at epochs
             parameters.append(
                 tpars.arcwise_constant_drag_coefficient(
                     body=self.config.environment.general.spacecraft,
-                    arc_initial_times=times,
+                    arc_initial_times=cd_epochs,
                 )
             )
 
@@ -181,7 +242,7 @@ class EstimationManager:
             #     )
             # )
 
-        # Radiation pressure coefficient
+        # Radiation pressure coefficient (Sun direction)
         if self.config.estimation.parameters.radiation_pressure_coefficient:
 
             log.debug("Estimation of radiation pressure coefficients")
@@ -197,6 +258,66 @@ class EstimationManager:
                     target_body=self.config.environment.general.spacecraft,
                     source_body="Sun",
                 )
+            )
+
+        # Radiation pressure coefficient (Normal to Sun)
+        if self.config.estimation.parameters.k2_radiation_coefficient:
+
+            log.debug("Estimation of k2 radiation pressure coefficient")
+
+            parameters.append(
+                tpars.radiation_pressure_target_perpendicular_direction_scaling(
+                    target_body=self.config.environment.general.spacecraft,
+                    source_body="Sun",
+                )
+            )
+
+        # GM of Phobos
+        if self.config.estimation.parameters.gm_phobos:
+
+            log.debug("Estimation of GM of Phobos")
+
+            parameters.append(tpars.gravitational_parameter("Phobos"))
+
+        # Absolute bias for open-loop data
+        if self.config.estimation.parameters.open_loop_biases:
+
+            # Ensure link ends are available
+            if self.__links_per_observable is None:
+                log.fatal(
+                    "Attempted to set up estimation of bias,"
+                    " but link ends are not available"
+                )
+                log.fatal(traceback.extract_stack()[-2])
+                exit(1)
+
+            # Ensure open-loop observations are used
+            if "open_loop" not in self.generators:
+                log.fatal(
+                    "Attempted to set up estimation of bias "
+                    "without open-loop observations"
+                )
+                log.fatal(traceback.extract_stack()[-2])
+                exit(1)
+
+            # Define biases for open-loop link ends
+            open_loop_observable = self.generators["open_loop"].observable_type
+            for link_end in self.__links_per_observable[open_loop_observable]:
+
+                # Update count of estimated biases
+                self.__estimated_biases += 1
+
+                # Update list of parameters
+                parameters.append(
+                    tpars.absolute_observation_bias(
+                        observable_type=open_loop_observable,
+                        link_ends=tlinks.link_definition(link_end),
+                    )
+                )
+
+            log.debug(
+                f"Estimation {self.__estimated_biases} absolute "
+                "observation biases"
             )
 
         if len(parameters) == 0:
@@ -215,6 +336,71 @@ class EstimationManager:
         log.info("Created parameter set")
         return parameter_set
 
+    def prefit_based_filtering_and_weighting(
+        self, collection: tobs.ObservationCollection
+    ) -> None:
+
+        # Ensure configuration specifies base directory
+        if self.config.base_directory is None:
+            log.fatal(
+                "Requested residual-based filtering, but configuration "
+                "does not specify base directory"
+            )
+            log.fatal(traceback.extract_stack()[-2])
+            exit(1)
+
+        # Update observation collection with offset pre-fit residuals
+        prefits = PrefitResults.from_file(
+            self.config.base_directory / "prefit_results.pkl"
+        )
+        collection.set_residuals(prefits.residual)
+
+        # Apply pre-fit-based filtering
+        for model, generator in self.generators.items():
+
+            # Skip if not used
+            if not self.flags[model]:
+                continue
+
+            # Perform filtering
+            collection = generator.apply_residual_based_filter(collection)
+
+        return None
+
+    def apply_residual_based_filtering(
+        self, collection: tobs.ObservationCollection
+    ) -> tobs.ObservationCollection:
+
+        # Ensure configuration specifies base directory
+        if self.config.base_directory is None:
+            log.fatal(
+                "Requested residual-based filtering, but configuration "
+                "does not specify base directory"
+            )
+            log.fatal(traceback.extract_stack()[-2])
+            exit(1)
+
+        # Load pre-fit residuals into observation collection
+        prefits = PrefitResults.from_file(
+            self.config.base_directory / "prefit_results.pkl"
+        )
+        collection.set_residuals(prefits.residual + RESIDUAL_FILTERING_OFFSET)
+
+        # Loop over observable types
+        for model, generator in self.generators.items():
+
+            # Skip if not used
+            if not self.flags[model]:
+                continue
+
+            # Perform filtering
+            collection = generator.apply_residual_based_filter(collection)
+
+        # Remove offset from residuals
+        collection.set_residuals(collection.get_concatenated_residuals() * 0.0)
+
+        return collection
+
 
 def perform_estimation(
     bodies: "SystemOfBodies",
@@ -229,6 +415,11 @@ def perform_estimation(
 
     # Generate observation collection
     observations = estimation_manager.observation_collection(bodies)
+
+    # Apply pre-fit-based filtering (Does nothing if not requested)
+    observations = estimation_manager.apply_residual_based_filtering(
+        observations
+    )
 
     # Create observation model
     observation_models = estimation_manager.observation_models(observations)

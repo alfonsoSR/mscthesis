@@ -5,6 +5,7 @@ from tudatpy.estimation.observable_models_setup import (
     model_settings as toms,
 )
 from tudatpy.estimation import observations as tobs
+from tudatpy.estimation.observations import observations_processing as tobsp
 
 # from .links import link_end_from_config
 from ..config.estimation.observation_models.cartesian import CartesianSetup
@@ -13,8 +14,9 @@ from ..config.estimation.observation_models.doppler import (
 )
 from ..config.estimation.observation_models.links import LinkEndSetup
 from ..logging import log
+import traceback
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 import abc
 
 if TYPE_CHECKING:
@@ -24,11 +26,171 @@ if TYPE_CHECKING:
         ClosedLoopDopplerSetup,
         OpenLoopDopplerSetup,
     )
+    from ..config.estimation.observations.interface import (
+        ClosedLoopObservationsSetup,
+        CartesianObservationsSetup,
+        OpenLoopObservationsSetup,
+    )
 
 
 class ObservationModelSettingsGenerator[
     T: ("CartesianSetup", "ClosedLoopDopplerSetup", "OpenLoopDopplerSetup")
 ](SettingsGenerator[T], metaclass=abc.ABCMeta):
+
+    @property
+    @abc.abstractmethod
+    def observable_type_id(self) -> str: ...
+
+    @property
+    @abc.abstractmethod
+    def observable_type(self) -> toms.ObservableType: ...
+
+    @property
+    def local_observation_config(self) -> Union[
+        "ClosedLoopObservationsSetup",
+        "CartesianObservationsSetup",
+        "OpenLoopObservationsSetup",
+    ]:
+
+        observation_config = self.config.estimation.observations
+        return getattr(observation_config, self.observable_type_id)
+
+    def get_absolute_filters(
+        self, station: str
+    ) -> list[tobsp.ObservationFilterBase]:
+
+        filter_setup = self.local_observation_config.filters
+        absolute_filters: list[tobsp.ObservationFilterBase] = []
+        for absolute_setup in filter_setup.absolute_value:
+
+            if absolute_setup.station not in (station, "all"):
+                continue
+
+            absolute_filters.append(
+                tobsp.observation_filter(
+                    filter_type=tobsp.ObservationFilterType.absolute_value_filtering,
+                    filter_value=absolute_setup.value,
+                    filter_out=absolute_setup.filter_out,
+                    use_opposite_condition=absolute_setup.use_opposite,
+                )
+            )
+
+        return absolute_filters
+
+    def get_between_epochs_filters(
+        self, station: str
+    ) -> list[tobsp.ObservationFilterBase]:
+
+        filter_setup = self.local_observation_config.filters
+        epoch_filters: list[tobsp.ObservationFilterBase] = []
+        for epochs_setup in filter_setup.between_epochs:
+
+            if epochs_setup.station not in (station, "all"):
+                continue
+
+            epoch_filters.append(
+                tobsp.observation_filter(
+                    filter_type=tobsp.ObservationFilterType.time_bounds_filtering,
+                    first_filter_value=epochs_setup.first_epoch,
+                    second_filter_value=epochs_setup.second_epoch,
+                    filter_out=epochs_setup.filter_out,
+                    use_opposite_condition=epochs_setup.use_opposite,
+                )
+            )
+
+        return epoch_filters
+
+    def get_residual_based_filters(
+        self, station: str
+    ) -> list[tobsp.ObservationFilterBase]:
+
+        log.warning("Residual-based filtering only defined for open-loop")
+
+        filter_setup = self.local_observation_config.filters
+        residual_filters: list[tobsp.ObservationFilterBase] = []
+        return residual_filters
+        # for residual_setup in filter_setup.residual_based:
+
+        #     if residual_setup.station not in (station, "all"):
+        #         continue
+
+        #     residual_filters.append(
+        #         tobsp.observation_filter(
+        #             filter_type=tobsp.ObservationFilterType.residual_filtering,
+        #             filter_value=residual_setup.value,
+        #             filter_out=residual_setup.filter_out,
+        #             use_opposite_condition=residual_setup.use_opposite,
+        #         )
+        #     )
+
+        # return residual_filters
+
+    @abc.abstractmethod
+    def apply_residual_based_filter(
+        self, collection: tobs.ObservationCollection
+    ) -> tobs.ObservationCollection: ...
+
+    # def apply_residual_based_filter(
+    #     self, collection: tobs.ObservationCollection
+    # ) -> tobs.ObservationCollection:
+
+    #     # Show logging information
+    #     log.info(
+    #         f"Filtering {self.observable_type_id} observations "
+    #         "based on pre-fit residuals"
+    #     )
+
+    #     # Skip if filters not active
+    #     if not self.local_observation_config.filters.present:
+    #         return collection
+
+    #     # Define parser for this type of observation
+    #     type_parser = tobsp.observation_parser(self.observable_type)
+
+    #     # Loop over link-ends with observations of this type
+    #     used_receivers: set[str] = set()
+    #     for link in collection.get_link_definitions_for_observables(
+    #         self.observable_type
+    #     ):
+
+    #         # Get link ID for receiver
+    #         receiver_id = link.link_end_id(tlinks.LinkEndType.receiver)
+
+    #         # Skip if already considered and add to set otherwise
+    #         if receiver_id.reference_point in used_receivers:
+    #             continue
+    #         used_receivers.add(receiver_id.reference_point)
+
+    #         # Define combined observation parser for current receiver
+    #         receiver_parser = tobsp.observation_parser(
+    #             link_end_id=(
+    #                 receiver_id.body_name,
+    #                 receiver_id.reference_point,
+    #             )
+    #         )
+    #         combined_parser = tobsp.observation_parser(
+    #             observation_parsers=[type_parser, receiver_parser],
+    #             combine_conditions=True,
+    #         )
+
+    #         # Define collection of residual filters settings
+    #         residual_filter_settings = self.get_residual_based_filters(
+    #             receiver_id.reference_point
+    #         )
+    #         if len(residual_filter_settings) == 0:
+    #             continue
+
+    #         # Apply filters to observation collection
+    #         residual_filters: dict[
+    #             tobsp.ObservationCollectionParser,
+    #             tobsp.ObservationFilterBase,
+    #         ] = {
+    #             combined_parser: residual_filter
+    #             for residual_filter in residual_filter_settings
+    #         }
+    #         collection.filter_observations(residual_filters, False)
+
+    #     return collection
 
     def link_definitions(self) -> dict[str, tlinks.LinkDefinition]:
 

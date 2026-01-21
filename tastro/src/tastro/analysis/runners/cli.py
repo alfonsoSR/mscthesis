@@ -5,6 +5,7 @@ from .core import (
 )
 from ..core import ExecutionManager
 from ...io.command_line import CLParser
+from ...logging import log, FileHandler, StdoutHandler
 
 
 def tpropagator_cli() -> None:

@@ -333,7 +333,7 @@ def show_correlation_matrix_single(source_dir: Path) -> None:
 
     # exit(0)
 
-    correlation = estimation.covariance_matrix
+    correlation = estimation.correlation_matrix
 
     # print(covariance.shape)
     # exit(0)
@@ -351,24 +351,24 @@ def show_correlation_matrix_single(source_dir: Path) -> None:
 
     fig, ax = plt.subplots(figsize=(10, 10))
     ax.set_title("Correlation matrix")
-    foo = ax.imshow(correlation, aspect="equal", cmap="GnBu")
+    foo = ax.imshow(np.abs(correlation), aspect="equal", cmap="GnBu")
     ax.set_xticks([idx for idx in range(len(parameters))], labels=parameters)
     ax.set_yticks([idx for idx in range(len(parameters))], labels=parameters)
-    fig.colorbar(mappable=foo)
+    fig.colorbar(mappable=foo, boundaries=np.arange(0, 1.1, 0.1))
     for i in range(correlation.shape[0]):
-        # for j in range(correlation.shape[1]):
+        for j in range(correlation.shape[1]):
 
-        val = np.sqrt(correlation[i, i])
-        # dcor = 1 - val
+            val = np.abs(correlation[i, j])
+            dcor = 1 - val
 
-        ax.text(
-            x=i,
-            y=i,
-            s=f"{val:.3e}",
-            ha="center",
-            va="center",
-            color="k",
-        )  # type: ignore
+            ax.text(
+                x=i,
+                y=j,
+                s=f"{val:.2f}",
+                ha="center",
+                va="center",
+                color="k",
+            )  # type: ignore
 
     fig.savefig(source_dir / "correlation_matrix.png")
     plt.show()

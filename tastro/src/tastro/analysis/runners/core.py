@@ -8,13 +8,50 @@ from ...propagation import (
     propagate_translational_dynamics,
 )
 from ...estimation import perform_estimation, perform_prefit_analysis
-from ...logging import log
+from ...logging import log, FileHandler, StdoutHandler, AlternativeFileHandler
 from typing import Callable
 import multiprocessing as mp
 from ...io import PropagationOutput, EstimationResults
 from tudatpy.estimation.estimation_analysis import propagate_covariance
+import functools
+import sys
 
 
+def log_to_file(file_name: str) -> Callable:
+
+    def log_to_file_decorator(function: Callable) -> Callable:
+
+        @functools.wraps(function)
+        def function_inner(source_dir: Path) -> None:
+
+            # Define output file for logging
+            output_file = source_dir / f"{file_name}"
+
+            with output_file.open("w") as buffer:
+
+                file_handler = AlternativeFileHandler.from_buffer_and_level(
+                    buffer=buffer,
+                    level="DEBUG",
+                )
+                stdout_handler = StdoutHandler.from_level("DEBUG")
+                log.addHandler(file_handler)
+                log.addHandler(stdout_handler)
+
+                # Run function
+                output = function(source_dir)
+
+                # Remove handler
+                log.removeHandler(file_handler)
+                log.removeHandler(stdout_handler)
+
+            return output
+
+        return function_inner
+
+    return log_to_file_decorator
+
+
+@log_to_file("tpropagator.log")
 def propagation_from_source_directory(source_dir: Path) -> None:
     """Propagate trajectory from configuration in source directory"""
 
@@ -54,6 +91,7 @@ def propagation_from_source_directory(source_dir: Path) -> None:
     return None
 
 
+@log_to_file("testimator.log")
 def estimation_from_source_directory(source_dir: Path) -> None:
     """Run estimation analysis from configuration in source directory
 
@@ -98,6 +136,7 @@ def estimation_from_source_directory(source_dir: Path) -> None:
     return None
 
 
+@log_to_file("tprefit.log")
 def prefit_analysis_from_source_directory(source_dir: Path) -> None:
 
     # Define paths to configuration file and metakernel

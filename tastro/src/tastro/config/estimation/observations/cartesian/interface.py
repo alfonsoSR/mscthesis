@@ -1,5 +1,7 @@
 from ....core import SetupBase
 from pathlib import Path
+import sys
+import os
 
 
 class CartesianSourceSetup(SetupBase):

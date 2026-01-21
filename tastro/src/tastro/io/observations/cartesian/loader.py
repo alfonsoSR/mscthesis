@@ -20,7 +20,14 @@ class CartesianObservationRecord(RawObservationRecord):
     @staticmethod
     def from_config(config: "CaseSetup") -> "CartesianObservationRecord":
 
+        print("We don't get here?")
+
         source = config.estimation.observations.cartesian.sources[0]
+
+        # Check if source are results in current directory
+        print(source)
+        exit(0)
+
         with source.open("rb") as buffer:
             state_history: dict[ttime.Time, np.ndarray] = pickle.load(buffer)
 
