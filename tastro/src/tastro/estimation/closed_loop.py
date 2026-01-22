@@ -1,12 +1,14 @@
 from ..config.estimation.observation_models.doppler import (
     ClosedLoopDopplerSetup,
 )
+from .open_loop import RESIDUAL_FILTERING_OFFSET
 from tudatpy.estimation import observations as tobs
 from tudatpy.astro import time_representation as ttime
 from tudatpy.estimation.observations import observations_processing as tobsp
 from tudatpy.estimation.observable_models_setup import (
     model_settings as toms,
     links as tlinks,
+    biases as tbias,
 )
 from tudatpy.estimation.observations_setup import (
     ancillary_settings as tancs,
@@ -223,8 +225,68 @@ class ClosedLoopSettingsGenerator(
         self, collection: tobs.ObservationCollection
     ) -> tobs.ObservationCollection:
 
-        log.fatal(
-            "Residual-based filtering not available for closed-loop observations"
+        # Define parser for closed-loop observations
+        type_parser = tobsp.observation_parser(self.observable_type)
+        nobs_original = len(collection.get_concatenated_residuals(type_parser))
+
+        # Loop over links with closed-loop observations
+        used_receivers: set[str] = set()
+        for link in collection.get_link_definitions_for_observables(
+            self.observable_type
+        ):
+
+            # Get link ID and reference point
+            receiver_id = link.link_end_id(tlinks.LinkEndType.receiver)
+            reference_point = receiver_id.reference_point
+
+            # Skip if reference point already considered
+            if reference_point in used_receivers:
+                continue
+
+            # Define observation parser for current receiver
+            receiver_parser = tobsp.observation_parser(
+                link_end_id=(
+                    receiver_id.body_name,
+                    reference_point,
+                )
+            )
+            combined_parser = tobsp.observation_parser(
+                observation_parsers=[type_parser, receiver_parser],
+                combine_conditions=True,
+            )
+
+            # Define weights from standard deviation after filtering
+            filtered_residuals = (
+                np.array(
+                    collection.get_concatenated_residuals(combined_parser)
+                ).flatten()
+                - RESIDUAL_FILTERING_OFFSET
+            )
+            current_std = np.std(filtered_residuals)
+            current_weight = 1.0 / (current_std * current_std)
+            collection.set_constant_weight(
+                weight=current_weight,
+                observation_parser=combined_parser,
+            )
+
+            # Log information about weights
+            log.debug(
+                f"{reference_point} :: "
+                f"STD {current_std:.2e} :: WEIGHT {current_weight:.2e}"
+            )
+
+            # Update set of considered stations
+            used_receivers.add(reference_point)
+
+        # Remove empty observation sets from observation collection
+        collection.remove_empty_observation_sets()
+
+        # Log change in number of observations
+        nobs_after = len(collection.get_concatenated_residuals(type_parser))
+        difference = nobs_original - nobs_after
+        log.debug(
+            f"Closed-loop residual filter :: Before {nobs_original} :: "
+            f"After {nobs_after} :: Removed {difference}"
         )
-        log.fatal(traceback.extract_stack()[-2])
-        exit(1)
+
+        return collection

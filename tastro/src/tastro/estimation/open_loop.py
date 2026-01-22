@@ -19,7 +19,6 @@ from ..logging import log
 from ..io.observations import load_open_loop_doppler_observations_from_config
 import numpy as np
 import spiceypy
-from nastro import graphics as ng
 
 from typing import TYPE_CHECKING
 
@@ -387,15 +386,29 @@ class OpenLoopSettingsGenerator(
         # )
 
         # Define open-loop observation model for each link
-        observation_models: list[toms.ObservationModelSettings] = [
-            toms.doppler_measured_frequency(
-                link_ends=link_definition,
-                light_time_correction_settings=light_time_corrections,
-                light_time_convergence_settings=light_time_convergence,
-                bias_settings=tbias.absolute_bias(np.array([0.0])),
+        observation_models: list[toms.ObservationModelSettings] = []
+        for link_definition in link_definitions:
+
+            # Get ID of link
+            _transmitter = link_definition.link_end_id(
+                tlinks.LinkEndType.transmitter
+            ).reference_point
+            _receiver = link_definition.link_end_id(
+                tlinks.LinkEndType.receiver
+            ).reference_point
+            log.debug(
+                f"Defining open-loop model settings: "
+                f"{_transmitter} :: {_receiver}"
             )
-            for link_definition in link_definitions
-        ]
+
+            observation_models.append(
+                toms.doppler_measured_frequency(
+                    link_ends=link_definition,
+                    light_time_correction_settings=light_time_corrections,
+                    light_time_convergence_settings=light_time_convergence,
+                    bias_settings=tbias.absolute_bias(np.array([0.0])),
+                )
+            )
         return observation_models
 
     def apply_residual_based_filter(
