@@ -3,7 +3,6 @@ from tudatpy.dynamics import (
     parameters_setup as tpars,
     parameters as tpar,
 )
-from nastro import graphics as ng
 import copy
 from tudatpy.dynamics.propagation import (
     SimulationResults,
@@ -38,7 +37,6 @@ from ..io import EstimationResults, PrefitResults
 import traceback
 from scipy.signal import find_peaks
 import numpy as np
-from nastro import graphics as ng
 
 if TYPE_CHECKING:
     from tudatpy.dynamics.environment import SystemOfBodies
