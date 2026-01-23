@@ -8,9 +8,7 @@ from tudatpy.estimation.observable_models_setup import (
 )
 from tudatpy.estimation.observations_setup import (
     ancillary_settings as tancs,
-    observations_wrapper as towpr,
 )
-from tudatpy.dynamics.environment import SystemOfBodies
 from .common import (
     ObservationModelSettingsGenerator,
     link_end_from_reference_point,
@@ -26,7 +24,6 @@ if TYPE_CHECKING:
     from ..config.estimation.observation_models.doppler import (
         OpenLoopDopplerSetup,
     )
-    from ..config.environment.stations import StationSetup
 
 
 RESIDUAL_FILTERING_OFFSET: float = 1e4
@@ -44,72 +41,6 @@ class OpenLoopSettingsGenerator(
     def observable_type(self) -> toms.ObservableType:
         return toms.ObservableType.doppler_measured_frequency_type
 
-    def filter_settings(self) -> dict[str, list[tobsp.ObservationFilterBase]]:
-
-        # Initialize list of filters
-        filters_per_station: dict[str, list[tobsp.ObservationFilterBase]] = {}
-
-        # Return if filters are not set
-        if not self.config.estimation.observations.open_loop.filters.present:
-            return filters_per_station
-
-        # Alias for filter setup
-        filter_setup = self.config.estimation.observations.open_loop.filters
-
-        # Absolute filters
-        for absolute_setup in filter_setup.absolute_value:
-
-            # Update container with station if not present
-            if absolute_setup.station not in filters_per_station:
-                filters_per_station[absolute_setup.station] = []
-
-            # Update filters for current station
-            filters_per_station[absolute_setup.station].append(
-                tobsp.observation_filter(
-                    filter_type=tobsp.ObservationFilterType.absolute_value_filtering,
-                    filter_value=absolute_setup.value,
-                    filter_out=absolute_setup.filter_out,
-                    use_opposite_condition=absolute_setup.use_opposite,
-                )
-            )
-
-        # Between-epochs filters
-        for epochs_setup in filter_setup.between_epochs:
-
-            # Update container with station if not present
-            if epochs_setup.station not in filters_per_station:
-                filters_per_station[epochs_setup.station] = []
-
-            # Update filters for current station
-            filters_per_station[epochs_setup.station].append(
-                tobsp.observation_filter(
-                    filter_type=tobsp.ObservationFilterType.time_bounds_filtering,
-                    first_filter_value=epochs_setup.first_epoch,
-                    second_filter_value=epochs_setup.second_epoch,
-                    filter_out=epochs_setup.filter_out,
-                    use_opposite_condition=epochs_setup.use_opposite,
-                )
-            )
-
-        # Require pre-computed pre-fit residuals for residual-based filter
-        for residual_setup in filter_setup.residual_based:
-
-            # Update container with station if note present
-            if residual_setup.station not in filters_per_station:
-                filters_per_station[residual_setup.station] = []
-
-            # Update filters for current station
-            filters_per_station[residual_setup.station].append(
-                tobsp.observation_filter(
-                    filter_type=tobsp.ObservationFilterType.residual_filtering,
-                    filter_value=residual_setup.value,
-                    filter_out=residual_setup.filter_out,
-                    use_opposite_condition=residual_setup.use_opposite,
-                )
-            )
-
-        return filters_per_station
-
     def observation_collection(self) -> tobs.ObservationCollection:
 
         log.info("Generating open-loop observation collection")
@@ -117,16 +48,10 @@ class OpenLoopSettingsGenerator(
         # Ancillary settings for observation collection
         ancillary_settings = self.ancillary_settings()
 
-        # Doppler link definitions
-        # link_definitions = self.link_definitions()
-
         # Load raw observation data per station
         data_per_station = load_open_loop_doppler_observations_from_config(
             self.config
         )
-
-        # Define settings for observation filters
-        # filters = self.filter_settings()
 
         # Get set of stations with uplink information
         uplink_stations: dict[tuple[ttime.Time, ttime.Time], str] = {}
