@@ -145,6 +145,7 @@ class EstimationManager:
         self,
         propagator: tprop.PropagatorSettings,
         bodies: tenv.SystemOfBodies,
+        observations: tobs.ObservationCollection,
     ) -> tpar.EstimatableParameterSet:
 
         log.info("Defining parameters to estimate")
@@ -282,15 +283,6 @@ class EstimationManager:
         # Absolute bias for open-loop data
         if self.config.estimation.parameters.open_loop_biases:
 
-            # Ensure link ends are available
-            if self.__links_per_observable is None:
-                log.fatal(
-                    "Attempted to set up estimation of bias,"
-                    " but link ends are not available"
-                )
-                log.fatal(traceback.extract_stack()[-2])
-                exit(1)
-
             # Ensure open-loop observations are used
             if "open_loop" not in self.generators:
                 log.fatal(
@@ -300,18 +292,38 @@ class EstimationManager:
                 log.fatal(traceback.extract_stack()[-2])
                 exit(1)
 
-            # Define biases for open-loop link ends
-            open_loop_observable = self.generators["open_loop"].observable_type
-            for link_end in self.__links_per_observable[open_loop_observable]:
+            # Retrieve link ends involved in open-loop observations
+            open_loop_observable_type = self.generators[
+                "open_loop"
+            ].observable_type
+            link_definitions = (
+                observations.get_link_definitions_for_observables(
+                    open_loop_observable_type
+                )
+            )
+
+            # Define biases for open-loop links
+            for link_definition in link_definitions:
 
                 # Update count of estimated biases
                 self.__estimated_biases += 1
 
+                # Log information about link
+                _transmitter = link_definition.link_end_id(
+                    tlinks.LinkEndType.transmitter
+                ).reference_point
+                _receiver = link_definition.link_end_id(
+                    tlinks.LinkEndType.receiver
+                ).reference_point
+                log.debug(
+                    f"Absolute bias for link: " f"{_transmitter} :: {_receiver}"
+                )
+
                 # Update list of parameters
                 parameters.append(
                     tpars.absolute_observation_bias(
-                        observable_type=open_loop_observable,
-                        link_ends=tlinks.link_definition(link_end),
+                        observable_type=open_loop_observable_type,
+                        link_ends=link_definition,
                     )
                 )
 
@@ -428,6 +440,7 @@ def perform_estimation(
     parameters_to_estimate = estimation_manager.parameters_to_estimate(
         propagator=propagator,
         bodies=bodies,
+        observations=observations,
     )
 
     # # Define parameters to estimate
