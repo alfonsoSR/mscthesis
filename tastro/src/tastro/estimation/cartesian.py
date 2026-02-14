@@ -102,8 +102,5 @@ class CartesianSettingsGenerator(
     def apply_residual_based_filter(
         self, collection: tobs.ObservationCollection
     ) -> tobs.ObservationCollection:
-        log.fatal(
-            "Residual-based filtering is not available for cartesian observations"
-        )
-        log.fatal(traceback.extract_stack()[-2])
-        exit(1)
+
+        return collection

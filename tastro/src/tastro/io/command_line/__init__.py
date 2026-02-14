@@ -5,6 +5,7 @@ from .plotters import (
     ResultComparisonParser,
     ResultVisualizationInput,
     ResultVisualizationParser,
+    ParameterDistributionInput,
 )
 
 __all__ = [
@@ -16,4 +17,5 @@ __all__ = [
     "ResultComparisonParser",
     "ResultVisualizationInput",
     "ResultVisualizationParser",
+    "ParameterDistributionInput",
 ]

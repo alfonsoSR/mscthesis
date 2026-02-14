@@ -14,6 +14,7 @@ from tudatpy.astro import (
 from ...logging import log
 import traceback
 from tudatpy.interface import spice
+from tudatpy.math import interpolators as tinterp
 
 
 class AnalysisType(enum.IntEnum):
@@ -182,6 +183,7 @@ class StateResidualVisualizationInput(ResultVisualizationInput):
     target_state: str
     reference_state: str
     formal_errors: bool = False
+    show_variability: bool = True
 
 
 class StateResidualComparisonInput(ResultComparisonInput):
@@ -217,6 +219,7 @@ class StateResidualVisualizationManager(
 
         # Define wether to plot formal errors or not
         self.formal_errors = user_input.formal_errors
+        self.show_variability = user_input.show_variability
 
         return None
 
@@ -292,16 +295,39 @@ class StateResidualVisualizationManager(
 
             case ReferenceFrame.RSW:
 
+                raise NotImplementedError("RSW formal errors not supported")
+
                 # Get state in J2000
                 rstate_j2000 = estimation.final_propagation_results.rstate_j2000
+                rstate_history: dict[ttime.Time, np.ndarray] = {
+                    ttime.Time(epoch): state
+                    for epoch, state in zip(
+                        estimation.final_propagation_results.epochs,
+                        rstate_j2000,
+                    )
+                }
+
+                # Interpolate state at observation epochs
+                __interp_settings = tinterp.lagrange_interpolation(8)
+                rstate_interp = tinterp.create_one_dimensional_vector_interpolator_time_object(
+                    data_to_interpolate=rstate_history,
+                    interpolator_settings=__interp_settings,
+                )
 
                 # Get states in RSW frame (ephemerides)
                 formal_errors_rsw = np.zeros((_formal_error_epochs.shape[0], 6))
-                for idx, formal_error in enumerate(_formal_errors.T):
+                for idx, (epoch, formal_error) in enumerate(
+                    zip(rstate_history, _formal_errors.T)
+                ):
+
+                    # # Get state of MEX wrt Mars at epoch
+                    # _rstate = spice.get_body_cartesian_state_at_epoch(
+                    #     "MEX", "Mars", "J2000", "NONE", epoch
+                    # )
 
                     # Calculate rotation matrix
                     rotation_matrix = tframe.inertial_to_rsw_rotation_matrix(
-                        rstate_j2000[idx]
+                        rstate_interp.interpolate(epoch)
                     )
 
                     # Reference state in RSW
@@ -369,10 +395,14 @@ class StateResidualVisualizationManager(
 
         # Get formal errors per source if requested
         if self.formal_errors:
-            formal_errors_per_source: dict[Path, FigureData] = {
-                source: self.__formal_errors_from_source_dir(source)
-                for source in sources
-            }
+            try:
+                spice.load_kernel(str(sources[0] / "metak.tm"))
+                formal_errors_per_source: dict[Path, FigureData] = {
+                    source: self.__formal_errors_from_source_dir(source)
+                    for source in sources
+                }
+            finally:
+                spice.clear_kernels()
 
         # Generate figure
         mosaic = ("ab;" * 3) + ("cd;" * 3) + ("ef;" * 3) + "gg"
@@ -533,6 +563,326 @@ class StateResidualVisualizationManager(
 
         return None
 
+    def average_state_residual(self, sources: list[Path]) -> None:
+
+        # Force -g flag on user input
+        self.group = True
+
+        # Define name of figure from state configurations
+        name_1 = name_component_from_state_config(self.state_1)
+        name_2 = name_component_from_state_config(self.state_2)
+        figure_name = (
+            "average-state-residual"
+            f"-{self.reference_frame}-{name_1}-{name_2}.png"
+        )
+
+        # Define settings for canvas and legend
+        outdir = self.get_output_directory(sources[0])
+        canvas_setup = self.generate_default_canvas_setup(
+            source=outdir,
+            figure_name=figure_name,
+            title=(
+                f"Average state residual :: {outdir.name} :: "
+                f"{name_1.upper()} vs. {name_2.upper()}"
+            ),
+            canvas_size=(6, 6.5),
+        )
+
+        legend_setup = ng.PlotSetup(
+            legend_columns=2,
+        )
+
+        # Get data to plot per source
+        data_per_source: dict[Path, FigureData] = {
+            source: self.__state_residual_from_source_dir(source)
+            for source in sources
+        }
+
+        # Generate figure
+        mosaic = ("ab;" * 3) + ("cd;" * 3) + ("ef;" * 3) + "gg"
+        with ng.Mosaic(mosaic, canvas_setup) as canvas:
+
+            components = ["x", "dx", "y", "dy", "z", "dz"]
+            match self.reference_frame:
+                case ReferenceFrame.J2000:
+                    label_components = components
+                case ReferenceFrame.RSW:
+                    label_components = ["r", "dr", "s", "ds", "w", "dw"]
+                case _:
+                    raise ValueError("Frame not implemented")
+            labels = [
+                rf"\dot {component[1]}" if component[0] == "d" else component[0]
+                for component in label_components
+            ]
+            units = [
+                "mm/s" if component[0] == "d" else "m"
+                for component in components
+            ]
+            scales = [
+                1e3 if component[0] == "d" else 1 for component in components
+            ]
+
+            for idx, component in enumerate(components):
+
+                label = labels[idx]
+                unit = units[idx]
+                scale = scales[idx]
+
+                # Define setup for subfigure
+                subfig_setup = ng.PlotSetup(
+                    xlabel=f"Hours past {self.ref_epoch_isot}",
+                    ylabel=rf"$\Delta {label}$ [{unit}]",
+                    scilimits=(-3, 3),
+                )
+
+                # Generate subfigure
+                with canvas.subplot(subfig_setup) as subfig:
+
+                    # Get average of component
+                    avg_component = np.average(
+                        [
+                            getattr(_data.state, component)
+                            for _data in data_per_source.values()
+                        ],
+                        axis=0,
+                    )
+
+                    # Get light and dark blue
+                    dark = subfig.next_color()
+                    light = subfig.next_color()
+
+                    for source in sources:
+
+                        # Set color to light blue
+                        data_per_source[source].color = light
+
+                        update_figure(
+                            subfig, data_per_source[source], component, scale
+                        )
+
+                    subfig.line(
+                        data_per_source[source].dt,
+                        avg_component * scale,
+                        color=dark,
+                    )
+
+            # Add legend
+            with canvas.subplot(legend_setup, ng.Legend) as legend:
+
+                legend.line(-1, -1, fmt="o", label="Average")
+                legend.line(-1, -1, fmt="o", label="Individual solutions")
+
+        return None
+
+    def average_state_residual_magnitude(self, bases: list[Path]) -> None:
+
+        # Force -g flag on user input
+        self.group = True
+
+        # Define name of figure from state configurations
+        figure_name = "average-state-residual-magnitude.png"
+
+        # Define settings for canvas and legend
+        outdir = self.get_output_directory(bases[0])
+        canvas_setup = self.generate_default_canvas_setup(
+            source=outdir,
+            figure_name=figure_name,
+            title=(f"Average magnitude of state residuals :: {outdir.name}"),
+            canvas_size=(6, 3),
+        )
+
+        legend_setup = ng.PlotSetup(
+            legend_columns=self.legend_cols,
+        )
+
+        # Get data to plot per source
+        data_per_base: dict[Path, dict[Path, FigureData]] = {}
+        for base in bases:
+
+            __base_data = {}
+            for source in base.iterdir():
+
+                if (not source.is_dir()) or (source.name.startswith(".")):
+                    continue
+
+                __base_data[source] = self.__state_residual_from_source_dir(
+                    source
+                )
+
+            data_per_base[base] = __base_data
+
+        # Generate figure
+        components = ["r_mag", "v_mag"]
+        scales = [1, 1e3]
+        units = ["m", "mm/s"]
+        labels = [r"|\Delta \mathbf{r}|", r"|\Delta \mathbf{v}|"]
+        with ng.Mosaic("ab;ab;ab;cc", canvas_setup) as canvas:
+
+            for label, unit, scale, component in zip(
+                labels, units, scales, components
+            ):
+
+                # Define setup for subfigure
+                subfig_setup = ng.PlotSetup(
+                    xlabel=f"Hours past {self.ref_epoch_isot}",
+                    ylabel=rf"${label}$ [{unit}]",
+                    scilimits=(-3, 3),
+                )
+
+                with canvas.subplot(subfig_setup) as subfig:
+
+                    averages = {}
+                    for base, data_per_source in data_per_base.items():
+
+                        # Get light and dark blue
+                        dark = subfig.next_color()
+                        light = subfig.next_color()
+
+                        # Get average of component
+                        avg_component = np.average(
+                            [
+                                getattr(_data.state, component)
+                                for _data in data_per_source.values()
+                            ],
+                            axis=0,
+                        )
+
+                        averages[base] = (dark, avg_component)
+
+                        if not self.show_variability:
+                            continue
+
+                        for source in data_per_source:
+
+                            # Set color to light blue
+                            data_per_source[source].color = light
+
+                            subfig.line(
+                                data_per_source[source].dt,
+                                getattr(
+                                    data_per_source[source].state, component
+                                )
+                                * scale,
+                                color=light,
+                                alpha=0.3,
+                            )
+
+                            # update_figure(
+                            #     subfig,
+                            #     data_per_source[source],
+                            #     component,
+                            #     scale,
+                            # )
+
+                        # subfig.line(
+                        #     data_per_source[source].dt,
+                        #     avg_component * scale,
+                        #     color=dark,
+                        # )
+
+                    for base, data_per_source in data_per_base.items():
+
+                        __source = list(data_per_source.keys())[0]
+                        if self.show_variability:
+                            subfig.line(
+                                data_per_source[__source].dt,
+                                averages[base][1] * scale,
+                                color=averages[base][0],
+                            )
+                        else:
+                            subfig.line(
+                                data_per_source[__source].dt,
+                                averages[base][1] * scale,
+                            )
+
+            with canvas.subplot(legend_setup, generator=ng.Legend) as lfig:
+
+                if self.show_variability:
+
+                    for base in bases:
+                        dark = lfig.next_color()
+                        light = lfig.next_color()
+                        lfig.line(-1, -1, fmt="o", color=dark, label=base.name)
+
+                else:
+                    for base in bases:
+                        lfig.line(-1, -1, fmt="o", label=base.name)
+
+        # mosaic = ("ab;" * 3) + "cc"
+        # with ng.Mosaic(mosaic, canvas_setup) as canvas:
+
+        #     components = ["x", "dx", "y", "dy", "z", "dz"]
+        #     match self.reference_frame:
+        #         case ReferenceFrame.J2000:
+        #             label_components = components
+        #         case ReferenceFrame.RSW:
+        #             label_components = ["r", "dr", "s", "ds", "w", "dw"]
+        #         case _:
+        #             raise ValueError("Frame not implemented")
+        #     labels = [
+        #         rf"\dot {component[1]}" if component[0] == "d" else component[0]
+        #         for component in label_components
+        #     ]
+        #     units = [
+        #         "mm/s" if component[0] == "d" else "m"
+        #         for component in components
+        #     ]
+        #     scales = [
+        #         1e3 if component[0] == "d" else 1 for component in components
+        #     ]
+
+        #     for idx, component in enumerate(components):
+
+        #         label = labels[idx]
+        #         unit = units[idx]
+        #         scale = scales[idx]
+
+        #         # Define setup for subfigure
+        #         subfig_setup = ng.PlotSetup(
+        #             xlabel=f"Hours past {self.ref_epoch_isot}",
+        #             ylabel=rf"$\Delta {label}$ [{unit}]",
+        #             scilimits=(-3, 3),
+        #         )
+
+        #         # Generate subfigure
+        #         with canvas.subplot(subfig_setup) as subfig:
+
+        #             # Get light and dark blue
+        #             dark = subfig.next_color()
+        #             light = subfig.next_color()
+
+        #             # Get average of component
+        #             avg_component = np.average(
+        #                 [
+        #                     getattr(_data.state, component)
+        #                     for _data in data_per_source.values()
+        #                 ],
+        #                 axis=0,
+        #             )
+
+        #             for source in sources:
+
+        #                 # Set color to light blue
+        #                 data_per_source[source].color = light
+
+        #                 update_figure(
+        #                     subfig, data_per_source[source], component, scale
+        #                 )
+
+        #             subfig.line(
+        #                 data_per_source[source].dt,
+        #                 avg_component * scale,
+        #                 color=dark,
+        #             )
+
+        #     # Add legend
+        #     with canvas.subplot(legend_setup, ng.Legend) as legend:
+
+        #         legend.line(-1, -1, fmt="o", label="Average")
+        #         legend.line(-1, -1, fmt="o", label="Individual solutions")
+
+        return None
+
 
 class StateResidualComparisonManager(
     AnalysisManager[StateResidualComparisonInput]
@@ -613,9 +963,9 @@ class StateResidualComparisonManager(
 
     def state_residual(self, sources: list[Path]) -> None:
 
-        raise NotImplementedError(
-            "Missing handling of different propagation epochs"
-        )
+        # raise NotImplementedError(
+        #     "Missing handling of different propagation epochs"
+        # )
 
         # Define name of figure from state configurations
         target_id = name_component_from_state_config(self.target_config)

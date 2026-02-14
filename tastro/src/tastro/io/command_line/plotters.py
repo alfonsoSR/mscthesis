@@ -176,3 +176,9 @@ class ResultComparisonParser(CommandLinePlotterParser[ResultComparisonInput]):
         arguments["reference"] = reference
 
         return arguments
+
+
+class ParameterDistributionInput(ResultVisualizationInput):
+
+    requested: int
+    bins: int

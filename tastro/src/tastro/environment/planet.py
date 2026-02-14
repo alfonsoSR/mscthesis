@@ -302,6 +302,46 @@ class PlanetSettings(SettingsGenerator[PlanetSetup]):
                 # Return isotropic source settings
                 return trad.isotropic_radiation_source(luminosity_settings)
 
+            case "albedo":
+
+                log.debug("Albedo")
+
+                if self.name != "Mars":
+                    raise NotImplementedError(
+                        "Albedo only implemented for Mars"
+                    )
+
+                surface_model = [
+                    trad.variable_albedo_surface_radiosity(
+                        albedo_distribution_settings=trad.predefined_spherical_harmonic_surface_property_distribution(
+                            trad.SphericalHarmonicsSurfacePropertyDistributionModel.albedo_dlam1
+                        ),
+                        original_source_name="Sun",
+                    )
+                ]
+
+                return trad.panelled_extended_radiation_source(
+                    panel_radiosity_settings=surface_model,
+                    number_of_panels_per_ring=[6, 12],
+                )
+
+                # moon_surface_radiosity_models = [
+                #             radiation_pressure.thermal_emission_angle_based_radiosity(
+                #                 95.0, 385.0, 0.95, "Sun"
+                #             ),
+                #             radiation_pressure.variable_albedo_surface_radiosity(
+                #                 radiation_pressure.predefined_spherical_harmonic_surface_property_distribution(
+                #                     radiation_pressure.albedo_dlam1
+                #                 ),
+                #                 "Sun",
+                #             ),
+                #         ]
+                # body_settings.get("Moon").radiation_source_settings = (
+                #     radiation_pressure.panelled_extended_radiation_source(
+                #         moon_surface_radiosity_models, [6, 12]
+                #     )
+                # )
+
             case _:
                 raise NotImplementedError(
                     f"Invalid radiation source model: {self.local.radiation.model}"

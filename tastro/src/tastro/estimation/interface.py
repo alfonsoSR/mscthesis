@@ -80,15 +80,6 @@ class EstimationManager:
             self.config.time.final_epoch,
         )
 
-        # Initialize container for link ends per observable type
-        self.__links_per_observable: (
-            dict[
-                toms.ObservableType,
-                list[dict[tlinks.LinkEndType, tlinks.LinkEndId]],
-            ]
-            | None
-        ) = None
-
         # Initialize count of estimated biases
         self.__estimated_biases: int = 0
 

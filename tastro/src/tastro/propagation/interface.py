@@ -117,6 +117,8 @@ def propagate_translational_dynamics(
         simulate_dynamics_on_creation=True,
     )
 
+    log.info("Finished propagating translational dynamics")
+
     # Pack results in data structure and return
     assert isinstance(dynamics_simulator, tsim.SingleArcSimulator)
     simulation_results = dynamics_simulator.propagation_results
