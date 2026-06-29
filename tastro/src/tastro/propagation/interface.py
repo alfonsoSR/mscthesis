@@ -76,13 +76,14 @@ def translational_propagator_settings_from_config(
         central_bodies=central_bodies,
     )
 
-    # # Dependent variables
+    # Dependent variables
     # dependent_variables = [
-    #     tdvar.single_acceleration(
-    #         acceleration_type=tacs.AvailableAcceleration.aerodynamic_type,
-    #         body_exerting_acceleration="Mars",
-    #         body_undergoing_acceleration="MEX",
-    #     ),
+    # tdvar.single_acceleration_norm(
+    #     acceleration_type=tacs.AvailableAcceleration.aerodynamic_type,
+    #     body_exerting_acceleration="Mars",
+    #     body_undergoing_acceleration="MEX",
+    # ),
+    # tdvar.density("MEX", "Mars"),
     # ]
 
     # Return propagator settings
@@ -122,10 +123,6 @@ def propagate_translational_dynamics(
     # Pack results in data structure and return
     assert isinstance(dynamics_simulator, tsim.SingleArcSimulator)
     simulation_results = dynamics_simulator.propagation_results
-
-    # with open("dependent_variables.pkl", "wb") as buffer:
-
-    #     pickle.dump(dynamics_simulator.dependent_variable_history, buffer)
 
     assert isinstance(simulation_results, tprop.SingleArcSimulationResults)
     return PropagationOutput.from_simulation(simulation_results, config)

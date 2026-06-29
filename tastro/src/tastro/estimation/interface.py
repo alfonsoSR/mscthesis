@@ -10,6 +10,7 @@ from tudatpy.dynamics.propagation import (
     SingleArcSimulationResults,
     SingleArcVariationalSimulationResults,
 )
+from pathlib import Path
 from tudatpy.dynamics.environment_setup import ephemeris as tephs
 from tudatpy.dynamics.propagation_setup import propagator as tprop
 from tudatpy.interface import spice
@@ -237,20 +238,31 @@ class EstimationManager:
         # Radiation pressure coefficient (Sun direction)
         if self.config.estimation.parameters.radiation_pressure_coefficient:
 
-            log.debug("Estimation of radiation pressure coefficients")
+            spacecraft = self.config.environment.general.spacecraft
+            match self.config.environment.vehicles[spacecraft].radiation.model:
+                case "cannonball":
 
-            # parameters.append(
-            #     tpars.radiation_pressure_coefficient(
-            #         body=self.config.environment.general.spacecraft
-            #     )
-            # )
+                    log.debug("Radiation pressure coefficient: cannonball")
+                    parameters.append(
+                        tpars.radiation_pressure_coefficient(
+                            body=self.config.environment.general.spacecraft
+                        )
+                    )
 
-            parameters.append(
-                tpars.radiation_pressure_target_direction_scaling(
-                    target_body=self.config.environment.general.spacecraft,
-                    source_body="Sun",
-                )
-            )
+                case "paneled":
+
+                    log.debug("Sun-pointing radiation pressure coefficient")
+                    parameters.append(
+                        tpars.radiation_pressure_target_direction_scaling(
+                            target_body=self.config.environment.general.spacecraft,
+                            source_body="Sun",
+                        )
+                    )
+
+                case _:
+                    log.fatal(traceback.extract_stack()[-1])
+                    log.fatal("Invalid radiation target settings")
+                    exit(1)
 
         # Radiation pressure coefficient (Normal to Sun)
         if self.config.estimation.parameters.k2_radiation_coefficient:
@@ -495,6 +507,7 @@ def perform_prefit_analysis(
 
     # Load observations and create observation models
     observations = estimation_manager.observation_collection(bodies)
+
     observation_models = estimation_manager.observation_models(observations)
 
     # Create observation simulator
@@ -510,6 +523,24 @@ def perform_prefit_analysis(
         observation_simulators=observation_simulator,
         bodies=bodies,
     )
+
+    # # Apply residual-based filtering
+    # prefits = observations.get_concatenated_residuals()
+    # observations.set_residuals(prefits + RESIDUAL_FILTERING_OFFSET)
+
+    # # Loop over observable types
+    # for model, generator in estimation_manager.generators.items():
+
+    #     # Skip if not used
+    #     if not estimation_manager.flags[model]:
+    #         continue
+
+    #     # Perform filtering
+    #     observations = generator.apply_residual_based_filter(observations)
+
+    # observations.set_residuals(
+    #     observations.get_concatenated_residuals() - RESIDUAL_FILTERING_OFFSET
+    # )
 
     # Pack results in data structure and return
     return PrefitResults.from_observation_collection(observations)

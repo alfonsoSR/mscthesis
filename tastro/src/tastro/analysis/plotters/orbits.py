@@ -261,6 +261,7 @@ class StateResidualVisualizationManager(
 
         # Load estimation output and ensure covariance is available
         estimation = EstimationResults.from_file(source / "estimation.pkl")
+        propagation = estimation.final_propagation_results
         if estimation.covariance_history is None:
             log.fatal(
                 "Requested formal errors for estimation without "
@@ -269,81 +270,124 @@ class StateResidualVisualizationManager(
             log.fatal(traceback.extract_stack()[-2])
             exit(1)
 
-        # Extract formal error history from covariance history
-        covariance_history = (
-            np.array(list(estimation.covariance_history.values()))
-            .swapaxes(0, 1)
-            .swapaxes(1, 2)
+        # Get covariance history in correct reference frame
+        match self.reference_frame:
+
+            case ReferenceFrame.J2000:
+
+                covariance_history = np.array(
+                    list(estimation.covariance_history.values())
+                )
+
+            case ReferenceFrame.RSW:
+
+                covariance_history_j2000 = np.array(
+                    list(estimation.covariance_history.values())
+                )
+
+                # Compose rotation matrix
+                partial_matrix = np.array(
+                    [
+                        tframe.inertial_to_rsw_rotation_matrix(rstate_i)
+                        for rstate_i in propagation.rstate_j2000
+                    ]
+                )
+                rotation_matrix = (
+                    np.ones((partial_matrix.shape[0]))[:, None, None]
+                    * np.identity(6)[None, :, :]
+                )
+                rotation_matrix[:, :3, :3] = partial_matrix
+                rotation_matrix[:, 3:6, 3:6] = partial_matrix
+
+                # Rotate covariance history
+                covariance_history = np.array(
+                    [
+                        matrix_i @ covariance_i @ matrix_i.T
+                        for matrix_i, covariance_i in zip(
+                            rotation_matrix, covariance_history_j2000
+                        )
+                    ]
+                )
+
+        # Extract formal errors from covariance matrix
+        formal_errors = nt.CartesianState(
+            *np.sqrt(np.diagonal(covariance_history, axis1=1, axis2=2).T)
         )
-        _formal_errors = np.array(
-            [
-                np.sqrt(covariance_history[idx][idx])
-                for idx in range(covariance_history.shape[0])
-            ]
-        )
+
+        # covariance_history = (
+        #     np.array(list(estimation.covariance_history.values()))
+        #     .swapaxes(0, 1)
+        #     .swapaxes(1, 2)
+        # )
+        # _formal_errors = np.array(
+        #     [
+        #         np.sqrt(covariance_history[idx][idx])
+        #         for idx in range(covariance_history.shape[0])
+        #     ]
+        # )
 
         # Get epochs at which formal errors are known
         _formal_error_epochs = np.array(
             list(estimation.covariance_history.keys())
         )
 
-        # Rotate if requested
-        match self.reference_frame:
-            case ReferenceFrame.J2000:
+        # # Rotate if requested
+        # match self.reference_frame:
+        #     case ReferenceFrame.J2000:
 
-                formal_errors = nt.CartesianState(*_formal_errors)
+        #         formal_errors = nt.CartesianState(*_formal_errors)
 
-            case ReferenceFrame.RSW:
+        #     case ReferenceFrame.RSW:
 
-                raise NotImplementedError("RSW formal errors not supported")
+        #         raise NotImplementedError("RSW formal errors not supported")
 
-                # Get state in J2000
-                rstate_j2000 = estimation.final_propagation_results.rstate_j2000
-                rstate_history: dict[ttime.Time, np.ndarray] = {
-                    ttime.Time(epoch): state
-                    for epoch, state in zip(
-                        estimation.final_propagation_results.epochs,
-                        rstate_j2000,
-                    )
-                }
+        #         # Get state in J2000
+        #         rstate_j2000 = estimation.final_propagation_results.rstate_j2000
+        #         rstate_history: dict[ttime.Time, np.ndarray] = {
+        #             ttime.Time(epoch): state
+        #             for epoch, state in zip(
+        #                 estimation.final_propagation_results.epochs,
+        #                 rstate_j2000,
+        #             )
+        #         }
 
-                # Interpolate state at observation epochs
-                __interp_settings = tinterp.lagrange_interpolation(8)
-                rstate_interp = tinterp.create_one_dimensional_vector_interpolator_time_object(
-                    data_to_interpolate=rstate_history,
-                    interpolator_settings=__interp_settings,
-                )
+        #         # Interpolate state at observation epochs
+        #         __interp_settings = tinterp.lagrange_interpolation(8)
+        #         rstate_interp = tinterp.create_one_dimensional_vector_interpolator_time_object(
+        #             data_to_interpolate=rstate_history,
+        #             interpolator_settings=__interp_settings,
+        #         )
 
-                # Get states in RSW frame (ephemerides)
-                formal_errors_rsw = np.zeros((_formal_error_epochs.shape[0], 6))
-                for idx, (epoch, formal_error) in enumerate(
-                    zip(rstate_history, _formal_errors.T)
-                ):
+        #         # Get states in RSW frame (ephemerides)
+        #         formal_errors_rsw = np.zeros((_formal_error_epochs.shape[0], 6))
+        #         for idx, (epoch, formal_error) in enumerate(
+        #             zip(rstate_history, _formal_errors.T)
+        #         ):
 
-                    # # Get state of MEX wrt Mars at epoch
-                    # _rstate = spice.get_body_cartesian_state_at_epoch(
-                    #     "MEX", "Mars", "J2000", "NONE", epoch
-                    # )
+        #             # # Get state of MEX wrt Mars at epoch
+        #             # _rstate = spice.get_body_cartesian_state_at_epoch(
+        #             #     "MEX", "Mars", "J2000", "NONE", epoch
+        #             # )
 
-                    # Calculate rotation matrix
-                    rotation_matrix = tframe.inertial_to_rsw_rotation_matrix(
-                        rstate_interp.interpolate(epoch)
-                    )
+        #             # Calculate rotation matrix
+        #             rotation_matrix = tframe.inertial_to_rsw_rotation_matrix(
+        #                 rstate_interp.interpolate(epoch)
+        #             )
 
-                    # Reference state in RSW
-                    _refpos_rsw = rotation_matrix @ formal_error[:3]
-                    _refvel_rsw = rotation_matrix @ formal_error[3:]
-                    formal_errors_rsw[idx] = np.array(
-                        [_refpos_rsw, _refvel_rsw]
-                    ).flatten()
+        #             # Reference state in RSW
+        #             _refpos_rsw = rotation_matrix @ formal_error[:3]
+        #             _refvel_rsw = rotation_matrix @ formal_error[3:]
+        #             formal_errors_rsw[idx] = np.array(
+        #                 [_refpos_rsw, _refvel_rsw]
+        #             ).flatten()
 
-                # Pack rotated formal errors
-                formal_errors = nt.CartesianState(*formal_errors_rsw.T)
+        #         # Pack rotated formal errors
+        #         formal_errors = nt.CartesianState(*formal_errors_rsw.T)
 
-            case _:
-                log.error("Frame option invalid or not implemented")
-                log.error(traceback.extract_stack()[-2])
-                exit(1)
+        #     case _:
+        #         log.error("Frame option invalid or not implemented")
+        #         log.error(traceback.extract_stack()[-2])
+        #         exit(1)
 
         # Extract cartesian states and epochs
         dt = (_formal_error_epochs - self.ref_epoch) / 3600.0

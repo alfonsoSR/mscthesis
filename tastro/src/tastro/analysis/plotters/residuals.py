@@ -20,6 +20,7 @@ class FigureData:
     markersize: int = 3
     color: str | None = None
     label: str | None = None
+    alpha: float = 0.7
 
     def __sub__(self, other: "FigureData") -> "FigureData":
 
@@ -91,6 +92,7 @@ def update_figure[T: ng.BaseFigure](fig: T, data: FigureData) -> T:
         color=data.color,
         markersize=data.markersize,
         label=data.label,
+        alpha=data.alpha,
     )
 
     return fig

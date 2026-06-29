@@ -20,6 +20,8 @@ from ..logging import log
 import traceback
 from ..io.observations import load_closed_loop_doppler_observations_from_config
 import numpy as np
+from nastro import graphics as ng
+from pathlib import Path
 
 
 class ClosedLoopSettingsGenerator(
@@ -132,9 +134,26 @@ class ClosedLoopSettingsGenerator(
                 ancilliary_settings=ancillary_settings,
             )
 
-            # Filter out outliers
-            for _filter in filters:
-                observation_set.filter_observations(_filter, False)
+            # splitter_nobs = tobsp.observation_set_splitter(
+            #     splitter_type=tobsp.ObservationSetSplitterType.nb_observations_splitter,
+            #     splitter_value=10,
+            #     min_number_observations=1,
+            # )
+            __collection = tobs.ObservationCollection([observation_set])
+            # __collection.split_observation_sets(splitter_time)
+
+            # Apply absolute value filters
+            for __absolute_filter in self.get_absolute_filters(station):
+                __collection.filter_observations(
+                    __absolute_filter, save_filtered_observations=False
+                )
+                # observation_subset.filter_observations(__absolute_filter)
+
+            # Apply filters between epochs
+            for __epoch_filter in self.get_between_epochs_filters(station):
+                __collection.filter_observations(
+                    __epoch_filter, save_filtered_observations=False
+                )
 
             # print("Setting noise to 4e-3")
             print("Not using noise")
@@ -142,7 +161,7 @@ class ClosedLoopSettingsGenerator(
 
             # Display debug information for station
             nobs_raw = len(station_data.observations)
-            nobs_filtered = len(observation_set.concatenated_observations)
+            nobs_filtered = len(__collection.concatenated_observations)
             nobs_delta = nobs_raw - nobs_filtered
             log.debug(
                 f"Station {station} :: Raw {nobs_raw} :: "
@@ -150,7 +169,9 @@ class ClosedLoopSettingsGenerator(
             )
 
             # Add observation set to collection contents
-            observation_collection_contents.append(observation_set)
+            observation_collection_contents += (
+                __collection.get_single_observation_sets()
+            )
 
         # Define observation collection
         observation_collection = tobs.ObservationCollection(
@@ -171,6 +192,14 @@ class ClosedLoopSettingsGenerator(
                 original_observation_collection=observation_collection,
                 compression_ratio=compression_ratio,
             )
+
+        # Split observation subset into scans
+        splitter_time = tobsp.observation_set_splitter(
+            splitter_type=tobsp.ObservationSetSplitterType.time_span_splitter,
+            splitter_value=ttime.Time(2.0 * 60.0),
+            min_number_observations=4,
+        )
+        observation_collection.split_observation_sets(splitter_time)
 
         log.info(
             "Generated observation collection from closed-loop observations"
@@ -255,6 +284,51 @@ class ClosedLoopSettingsGenerator(
                 combine_conditions=True,
             )
 
+            for subset in collection.get_single_observation_sets(
+                combined_parser
+            ):
+
+                # Define parser for current subset
+                bounds_parser = tobsp.observation_parser(
+                    time_bounds=subset.time_bounds,
+                    use_opposite_condition=False,
+                )
+                subset_parser = tobsp.observation_parser(
+                    observation_parsers=[
+                        type_parser,
+                        receiver_parser,
+                        bounds_parser,
+                    ],
+                    combine_conditions=True,
+                )
+
+                # Get pre-fit residuals for current subset
+                subset_residuals = (
+                    collection.get_concatenated_residuals(subset_parser)
+                    - RESIDUAL_FILTERING_OFFSET
+                )
+                subset_std = np.std(subset_residuals)
+                subset_weight = float(1.0 / (subset_std * subset_std))
+                collection.set_constant_weight_per_observation_parser(
+                    weights_per_observation_parser={
+                        subset_parser: subset_weight
+                    }
+                )
+
+                if np.log10(subset_std * 1e3) > 1:
+
+                    tref = ttime.DateTime.from_iso_string(
+                        "2013-12-29 07:10:09"
+                    ).to_epoch_time_object()
+                    t0, tend = subset.time_bounds
+                    dt0 = (t0 - tref).to_float() / 3600.0
+                    dtend = (tend - tref).to_float() / 3600.0
+
+                    log.warning(
+                        f"Noise above 10mHz :: {(subset_std * 1e3):.2e} "
+                        f":: {reference_point} :: {dt0:.2f} :: {dtend:.2f}"
+                    )
+
             # Define weights from standard deviation after filtering
             filtered_residuals = (
                 np.array(
@@ -263,10 +337,8 @@ class ClosedLoopSettingsGenerator(
                 - RESIDUAL_FILTERING_OFFSET
             )
             current_std = np.std(filtered_residuals)
-            current_weight = 1.0 / (current_std * current_std)
-            collection.set_constant_weight(
-                weight=current_weight,
-                observation_parser=combined_parser,
+            current_weight = np.average(
+                collection.get_concatenated_weights(combined_parser)
             )
 
             # Log information about weights

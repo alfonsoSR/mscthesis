@@ -78,11 +78,12 @@ class EstimationResults:
             )
 
         # Propagate covariance
-        print(f"Number of epochs: {len(estimation_epochs)}")
+        covariance_epochs = simulation_results[-1].epochs.tolist()
+        print(f"Number of epochs: {len(covariance_epochs)}")
         covariance_history = testa.propagate_covariance(
             initial_covariance=estimation_output.covariance,
             state_transition_interface=estimator.state_transition_interface,
-            output_times=estimation_epochs.tolist(),
+            output_times=covariance_epochs,
         )
 
         # Return data structure

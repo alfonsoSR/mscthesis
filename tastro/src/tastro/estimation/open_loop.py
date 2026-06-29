@@ -17,6 +17,7 @@ from ..logging import log
 from ..io.observations import load_open_loop_doppler_observations_from_config
 import numpy as np
 import spiceypy
+from nastro import graphics as ng
 
 from typing import TYPE_CHECKING
 
@@ -458,21 +459,144 @@ class OpenLoopSettingsGenerator(
                             save_filtered_observations=True,
                         )
 
-            # Define weights from standard deviation after filtering
-            filtered_residuals = (
-                np.array(
-                    collection.get_concatenated_residuals(combined_parser)
-                ).flatten()
-                - RESIDUAL_FILTERING_OFFSET
-            )
-            current_std = np.std(filtered_residuals)
-            current_weight = 1.0 / (current_std * current_std)
-            collection.set_constant_weight(
-                weight=current_weight,
-                observation_parser=combined_parser,
-            )
+                        # __dates = np.array(
+                        #     collection.get_concatenated_observation_times(
+                        #         subset_parser
+                        #     )
+                        # ).flatten()
+                        # subset_noise = np.array(
+                        #     collection.get_concatenated_weights(subset_parser)
+                        # ).flatten()
+
+                        # __res = (
+                        #     np.array(
+                        #         collection.get_concatenated_residuals(
+                        #             subset_parser
+                        #         )
+                        #     ).flatten()
+                        #     - RESIDUAL_FILTERING_OFFSET
+                        # )
+                        # with ng.SingleAxis() as figure:
+
+                        #     label = f"{np.average(subset_noise):.2e} {np.std(subset_noise):.2e}"
+
+                        #     figure.line(__dates, __res, fmt=".", label=label)
+
+                        # subset_std = np.std(subset_noise)
+                        # # print(
+                        # #     len(subset_noise),
+                        # #     np.average(subset_noise),
+                        # #     subset_std,
+                        # # )
+
+                        # collection.set_constant_weight(
+                        #     weight=(1.0 / (subset_std * subset_std)),
+                        #     observation_parser=subset_parser,
+                        # )
+
+                        # __dt = (
+                        #     np.array(
+                        #         collection.get_concatenated_observation_times(
+                        #             subset_parser
+                        #         )
+                        #     ).flatten()
+                        #     - tref
+                        # ) / 3600.0
+                        # fig.line(
+                        #     __dt,
+                        #     np.array(
+                        #         collection.get_concatenated_weights(
+                        #             subset_parser
+                        #         )
+                        #     ).flatten(),
+                        #     fmt=".",
+                        # )
+
+            # Loop over subsets and apply weights
+            # with ng.SingleAxis(
+            #     ng.PlotSetup(canvas_title=reference_point)
+            # ) as fig:
+            for subset in collection.get_single_observation_sets(
+                combined_parser
+            ):
+
+                # Define parser for current subset
+                bounds_parser = tobsp.observation_parser(
+                    time_bounds=subset.time_bounds,
+                    use_opposite_condition=False,
+                )
+                subset_parser = tobsp.observation_parser(
+                    observation_parsers=[
+                        type_parser,
+                        receiver_parser,
+                        bounds_parser,
+                    ],
+                    combine_conditions=True,
+                )
+
+                noise = collection.get_concatenated_weights(subset_parser)
+                noise_std = np.std(noise)
+                weight = float(1.0 / (noise_std * noise_std))
+                collection.set_constant_weight_per_observation_parser(
+                    weights_per_observation_parser={subset_parser: weight},
+                )
+
+                # fig.line(
+                #     collection.get_concatenated_observation_times(
+                #         subset_parser
+                #     ),
+                #     noise,
+                #     fmt=".",
+                # )
+
+                if np.log10(noise_std * 1e3) > 1:
+
+                    tref = ttime.DateTime.from_iso_string(
+                        "2013-12-29 07:10:09"
+                    ).to_epoch_time_object()
+                    t0, tend = subset.time_bounds
+                    dt0 = (t0 - tref).to_float() / 3600.0
+                    dtend = (tend - tref).to_float() / 3600.0
+
+                    log.warning(
+                        f"Noise above 10mHz :: {(noise_std * 1e3):.2e} "
+                        f":: {reference_point} :: {dt0:.2f} :: {dtend:.2f}"
+                    )
+
+            # # Define weights from standard deviation after filtering
+            # filtered_residuals = (
+            #     np.array(
+            #         collection.get_concatenated_residuals(combined_parser)
+            #     ).flatten()
+            #     - RESIDUAL_FILTERING_OFFSET
+            # )
+
+            # filtered_noise = np.array(
+            #     collection.get_concatenated_weights(combined_parser)
+            # ).flatten()
+            # __filtered_epochs = np.array(
+            #     collection.get_concatenated_observation_times(combined_parser)
+            # ).flatten()
+
+            # tref = ttime.DateTime.from_iso_string(
+            #     "2013-12-29 07:10:09"
+            # ).to_epoch()
+            # __dt = (__filtered_epochs - tref) / 3600.0
+            # with ng.DoubleAxis(figure_setup) as fig:
+
+            #     fig.line(
+            #         __dt,
+            #         filtered_noise,
+            #         fmt=".",
+            #         label=reference_point,
+            #     )
+            #     fig.line(__dt, filtered_residuals, fmt=".", axis="right")
 
             # Log information about weights
+            current_weight = np.average(
+                collection.get_concatenated_weights(combined_parser)
+            )
+            current_std = 1.0 / np.sqrt(current_weight)
             log.debug(
                 f"{reference_point} :: "
                 f"STD {current_std:.2e} :: WEIGHT {current_weight:.2e}"

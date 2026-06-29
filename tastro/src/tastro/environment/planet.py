@@ -317,7 +317,13 @@ class PlanetSettings(SettingsGenerator[PlanetSetup]):
                             trad.SphericalHarmonicsSurfacePropertyDistributionModel.albedo_dlam1
                         ),
                         original_source_name="Sun",
-                    )
+                    ),
+                    trad.thermal_emission_blackbody_variable_emissivity(
+                        emissivity_distribution_model=trad.predefined_knocke_type_surface_property_distribution(
+                            trad.emissivity_knocke
+                        ),
+                        original_source_name="Sun",
+                    ),
                 ]
 
                 return trad.panelled_extended_radiation_source(
